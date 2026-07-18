@@ -1,0 +1,97 @@
+import { _decorator, Component, Node, SpriteFrame, Vec3 } from 'cc';
+import { GAME } from '../core/GameConfig';
+import { CloudPlatform } from './CloudPlatform';
+import { Collectible, CollectibleType } from './Collectible';
+import { PlayerController } from './PlayerController';
+const { ccclass, property } = _decorator;
+
+@ccclass('CollectibleManager')
+export class CollectibleManager extends Component {
+  @property(SpriteFrame) coinSpriteFrame: SpriteFrame | null = null;
+  @property(SpriteFrame) starSpriteFrame: SpriteFrame | null = null;
+
+  private readonly active: Collectible[] = [];
+  private readonly coinPool: Collectible[] = [];
+  private readonly starPool: Collectible[] = [];
+  private readonly spawnPosition = new Vec3();
+
+  configure(coinSpriteFrame: SpriteFrame | null, starSpriteFrame: SpriteFrame | null): void {
+    this.coinSpriteFrame = coinSpriteFrame;
+    this.starSpriteFrame = starSpriteFrame;
+    if (this.coinPool.length + this.starPool.length + this.active.length === 0) {
+      this.prewarm('coin', 18);
+      this.prewarm('star', 6);
+    }
+  }
+
+  reset(): void {
+    for (let i = this.active.length - 1; i >= 0; i -= 1) this.releaseAt(i);
+  }
+
+  considerCloud(cloud: CloudPlatform): void {
+    // 起始落脚云不放收集物，避免开局直接重叠；金币与星星互斥，控制同屏数量。
+    if (cloud.node.position.y < -250) return;
+    const roll = Math.random();
+    const type: CollectibleType | null = roll < GAME.starSpawnChance ? 'star'
+      : roll < GAME.starSpawnChance + GAME.coinSpawnChance ? 'coin' : null;
+    if (!type) return;
+    this.spawnPosition.set(
+      cloud.node.position.x + (Math.random() - 0.5) * 82,
+      cloud.node.position.y + 78,
+      0,
+    );
+    this.spawn(type, this.spawnPosition);
+  }
+
+  collectTouching(
+    player: PlayerController,
+    onCollected: (type: CollectibleType, position: Vec3) => void,
+  ): void {
+    const playerPosition = player.node.position;
+    for (let i = this.active.length - 1; i >= 0; i -= 1) {
+      const item = this.active[i];
+      const dx = playerPosition.x - item.node.position.x;
+      const dy = playerPosition.y - item.node.position.y;
+      const collisionRadius = player.radius + item.radius;
+      if (dx * dx + dy * dy > collisionRadius * collisionRadius) continue;
+      const feedbackPosition = item.node.position.clone();
+      const type = item.type;
+      this.releaseAt(i);
+      onCollected(type, feedbackPosition);
+    }
+  }
+
+  cleanup(bottomY: number): void {
+    for (let i = this.active.length - 1; i >= 0; i -= 1) {
+      if (this.active[i].node.position.y < bottomY) this.releaseAt(i);
+    }
+  }
+
+  private prewarm(type: CollectibleType, count: number): void {
+    const pool = type === 'coin' ? this.coinPool : this.starPool;
+    for (let i = 0; i < count; i += 1) pool.push(this.createItem(type));
+  }
+
+  private spawn(type: CollectibleType, position: Vec3): void {
+    const pool = type === 'coin' ? this.coinPool : this.starPool;
+    const item = pool.pop() ?? this.createItem(type);
+    item.configure(type, position, this.coinSpriteFrame, this.starSpriteFrame);
+    this.active.push(item);
+  }
+
+  private createItem(type: CollectibleType): Collectible {
+    const node = new Node(type === 'coin' ? 'Coin' : 'Star');
+    node.parent = this.node;
+    node.layer = this.node.layer;
+    node.active = false;
+    return node.addComponent(Collectible);
+  }
+
+  private releaseAt(index: number): void {
+    const item = this.active[index];
+    this.active.splice(index, 1);
+    item.collect();
+    const pool = item.type === 'coin' ? this.coinPool : this.starPool;
+    pool.push(item);
+  }
+}
