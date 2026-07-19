@@ -1,6 +1,6 @@
 import {
-  _decorator, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math,
+  _decorator, Camera, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
+  Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math, view,
 } from 'cc';
 import { GAME } from '../core/GameConfig';
 import { SceneNavigator } from './SceneNavigator';
@@ -23,14 +23,24 @@ export class BootSceneBootstrap extends Component {
   private displayProgress = 0;
   private ready = false;
   private leaving = false;
+  private leavingTime = 0;
+  private rootOpacity: UIOpacity | null = null;
   private logo: Node | null = null;
   private logoOpacity: UIOpacity | null = null;
   private progressLabel: Label | null = null;
   private progressGraphics: Graphics | null = null;
+  private viewportWidth = 1080;
+  private viewportHeight = 1920;
   private readonly sparks: BootSpark[] = [];
 
   onLoad(): void {
-    this.node.getComponent(UITransform)?.setContentSize(1080, 1920);
+    const visible = view.getVisibleSize();
+    this.viewportWidth = visible.width;
+    this.viewportHeight = visible.height;
+    this.node.getComponent(UITransform)?.setContentSize(visible.width, visible.height);
+    this.rootOpacity = this.node.getComponent(UIOpacity) ?? this.node.addComponent(UIOpacity);
+    const camera = this.node.getChildByName('Camera')?.getComponent(Camera);
+    if (camera) camera.orthoHeight = visible.height * 0.5;
     this.build();
   }
 
@@ -39,29 +49,38 @@ export class BootSceneBootstrap extends Component {
   }
 
   update(dt: number): void {
-    const step = Math.min(dt, 1 / 30);
+    const step = Math.min(dt, 0.1);
     this.elapsed += step;
-    this.displayProgress = math.lerp(this.displayProgress, this.ready ? 1 : Math.max(0.08, this.loadProgress), Math.min(1, step * 4.8));
+    this.displayProgress = math.lerp(this.displayProgress, this.ready ? 1 : Math.max(0.15, this.loadProgress), Math.min(1, step * 12));
     this.animateLogo();
     this.animateSparks(step);
     this.drawProgress();
-    if (!this.leaving && this.ready && this.elapsed >= 1.5 && this.displayProgress >= 0.985) {
+    if (!this.leaving && this.ready && this.elapsed >= 0.55 && this.displayProgress >= 0.985) {
       this.leaving = true;
-      SceneNavigator.home();
+      this.leavingTime = 0;
+    }
+    if (this.leaving) {
+      this.leavingTime += step;
+      if (this.rootOpacity) this.rootOpacity.opacity = Math.round(255 * (1 - math.clamp01(this.leavingTime / 0.4)));
+      if (this.leavingTime >= 0.4) {
+        this.leaving = false;
+        SceneNavigator.home();
+      }
     }
   }
 
   private build(): void {
     const background = this.createNode('BootBackground', this.node);
-    background.addComponent(UITransform).setContentSize(1080, 1920);
+    background.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
     const bg = background.addComponent(Graphics);
-    const colors = [new Color(67, 77, 156), new Color(118, 143, 216), new Color(230, 190, 220)];
+    const colors = [new Color(15, 12, 41), new Color(48, 43, 99), new Color(36, 36, 62)];
     for (let i = 0; i < 36; i += 1) {
       const t = i / 35;
       const segment = Math.min(1, Math.floor(t * 2));
       const local = t * 2 - segment;
       bg.fillColor = this.mix(colors[segment], colors[segment + 1], local);
-      bg.rect(-540, -960 + i * 54, 1080, 56);
+      const bandHeight = this.viewportHeight / 36;
+      bg.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5 + i * bandHeight, this.viewportWidth, bandHeight + 2);
       bg.fill();
     }
 
@@ -90,8 +109,8 @@ export class BootSceneBootstrap extends Component {
       art.moveTo(-80, -8); art.quadraticCurveTo(0, 28, 80, -8); art.stroke();
     }
     this.logo.setPosition(0, 92, 0);
-    this.createLabel('BrandTitle', this.logo, '蹦蹦云', 86, new Color(105, 78, 158, 255)).node.setPosition(0, -12, 0);
-    this.createLabel('BrandSubtitle', this.logo, '向星光轻轻一跃', 25, new Color(121, 104, 170, 230)).node.setPosition(0, -92, 0);
+    this.createLabel('BrandTitle', this.logo, '蹦蹦云', 86, Color.WHITE).node.setPosition(0, -12, 0);
+    this.createLabel('BrandSubtitle', this.logo, '向上跳跃，收集星光 ✨', 25, new Color(255, 255, 255, 165)).node.setPosition(0, -92, 0);
 
     const sparkRoot = this.createNode('GatheringLight', this.node);
     for (let i = 0; i < 22; i += 1) {
@@ -106,7 +125,7 @@ export class BootSceneBootstrap extends Component {
     progress.setPosition(0, -360, 0);
     progress.addComponent(UITransform).setContentSize(520, 90);
     this.progressGraphics = progress.addComponent(Graphics);
-    this.progressLabel = this.createLabel('LoadingLabel', progress, '正在聚拢云端星光  0%', 22, new Color(255, 255, 255, 215));
+    this.progressLabel = this.createLabel('LoadingLabel', progress, '正在加载...  0%', 22, new Color(255, 255, 255, 185));
     this.progressLabel.node.setPosition(0, 30, 0);
     this.createLabel('VersionLabel', this.node, `v${GAME.version}`, 17, new Color(255, 255, 255, 110)).node.setPosition(462, -902, 0);
   }
@@ -116,9 +135,9 @@ export class BootSceneBootstrap extends Component {
     const reveal = math.clamp01(this.elapsed / 0.72);
     const eased = 1 - Math.pow(1 - reveal, 3);
     this.logoOpacity.opacity = Math.round(255 * eased);
-    const pulse = 1 + Math.sin(this.elapsed * 3.4) * 0.012;
+    const pulse = 1 + Math.sin(this.elapsed * Math.PI * 2) * 0.012;
     this.logo.setScale((0.78 + eased * 0.22) * pulse, (0.78 + eased * 0.22) * pulse, 1);
-    this.logo.setPosition(0, 72 + eased * 20, 0);
+    this.logo.setPosition(0, 92 + Math.sin(this.elapsed * Math.PI * 2) * 12, 0);
   }
 
   private animateSparks(dt: number): void {
@@ -136,9 +155,16 @@ export class BootSceneBootstrap extends Component {
     this.progressGraphics.clear();
     this.progressGraphics.fillColor = new Color(255, 255, 255, 48);
     this.progressGraphics.roundRect(-width * 0.5, -18, width, 14, 7); this.progressGraphics.fill();
-    this.progressGraphics.fillColor = new Color(255, 218, 151, 235);
-    this.progressGraphics.roundRect(-width * 0.5, -18, width * this.displayProgress, 14, 7); this.progressGraphics.fill();
-    this.progressLabel.string = `正在聚拢云端星光  ${Math.round(this.displayProgress * 100)}%`;
+    const progressWidth = width * this.displayProgress;
+    const segmentColors = [new Color(240, 147, 251, 245), new Color(245, 87, 108, 245), new Color(255, 215, 0, 245)];
+    for (let i = 0; i < 3; i += 1) {
+      const segmentStart = width * i / 3;
+      const filled = Math.max(0, Math.min(width / 3, progressWidth - segmentStart));
+      if (filled <= 0) continue;
+      this.progressGraphics.fillColor = segmentColors[i];
+      this.progressGraphics.rect(-width * 0.5 + segmentStart, -18, filled, 14); this.progressGraphics.fill();
+    }
+    this.progressLabel.string = `正在加载...  ${Math.round(this.displayProgress * 100)}%`;
   }
 
   private createLabel(name: string, parent: Node, text: string, size: number, color: Color): Label {

@@ -73,9 +73,15 @@ export class PlayerController extends Component {
     pos.x += this.velocity.x * dt;
     pos.y += this.velocity.y * dt;
 
-    const half = viewportWidth * 0.5;
-    if (pos.x < -half - this.radius) pos.x = half + this.radius;
-    if (pos.x > half + this.radius) pos.x = -half - this.radius;
+    const boundaryHalfWidth = Math.max(this.radius, GAME.playerVisualHalfWidth * GAME.playerVisualScale);
+    const maximumX = Math.max(0, viewportWidth * 0.5 - boundaryHalfWidth);
+    if (pos.x < -maximumX) {
+      pos.x = -maximumX;
+      if (this.velocity.x < 0) this.velocity.x = 0;
+    } else if (pos.x > maximumX) {
+      pos.x = maximumX;
+      if (this.velocity.x > 0) this.velocity.x = 0;
+    }
     this.node.setPosition(pos);
   }
 

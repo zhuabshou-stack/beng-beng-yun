@@ -1,6 +1,6 @@
 import {
-  _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Sprite, SpriteFrame, Tween, UITransform, Vec3, VerticalTextAlignment, math, tween,
+  _decorator, Button, Camera, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
+  Sprite, SpriteFrame, Tween, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math, tween, view,
 } from 'cc';
 import { AudioManager } from '../core/AudioManager';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
@@ -23,11 +23,22 @@ export class HomeSceneBootstrap extends Component {
   private overlay: Node | null = null;
   private elapsed = 0;
   private starting = false;
+  private startTransitionTime = 0;
+  private gameSceneReady = false;
+  private transitionOverlay: Node | null = null;
+  private transitionOpacity: UIOpacity | null = null;
+  private viewportWidth = 1080;
+  private viewportHeight = 1920;
   private readonly particles: HomeParticle[] = [];
   private readonly clouds: HomeCloud[] = [];
 
   onLoad(): void {
-    this.node.getComponent(UITransform)?.setContentSize(1080, 1920);
+    const visible = view.getVisibleSize();
+    this.viewportWidth = visible.width;
+    this.viewportHeight = visible.height;
+    this.node.getComponent(UITransform)?.setContentSize(visible.width, visible.height);
+    const camera = this.node.getChildByName('Camera')?.getComponent(Camera);
+    if (camera) camera.orthoHeight = visible.height * 0.5;
     this.buildBackground();
     this.buildHome();
   }
@@ -46,18 +57,28 @@ export class HomeSceneBootstrap extends Component {
     for (const cloud of this.clouds) {
       const pos = cloud.node.position.clone();
       pos.x += cloud.speed * step;
-      if (cloud.speed > 0 && pos.x > 620 + cloud.width) pos.x = -620 - cloud.width;
-      if (cloud.speed < 0 && pos.x < -620 - cloud.width) pos.x = 620 + cloud.width;
+      const edge = this.viewportWidth * 0.5 + cloud.width;
+      if (cloud.speed > 0 && pos.x > edge) pos.x = -edge;
+      if (cloud.speed < 0 && pos.x < -edge) pos.x = edge;
       cloud.node.setPosition(pos);
+    }
+    if (this.starting) {
+      this.startTransitionTime += Math.min(dt, 0.1);
+      const progress = math.clamp01(this.startTransitionTime / 0.42);
+      if (this.transitionOpacity) this.transitionOpacity.opacity = Math.round(255 * progress);
+      if (this.gameSceneReady && this.startTransitionTime >= 0.42) {
+        this.starting = false;
+        SceneNavigator.game();
+      }
     }
   }
 
   private buildHome(): void {
-    const topCoin = this.createPanel('CoinBadge', this.node, 230, 76, new Color(0, 0, 0, 74), 38);
-    topCoin.setPosition(-405, 835, 0);
-    this.coinLabel = this.createLabel('CoinCount', topCoin, '💰 0', 31, new Color(255, 215, 0, 255));
-    const settings = this.createButton('SettingsButton', this.node, '⚙', 82, 82, new Color(255, 255, 255, 38), 35, 41);
-    settings.setPosition(445, 835, 0);
+    const topCoin = this.createPanel('CoinBadge', this.node, 180, 70, new Color(0, 0, 0, 82), 35);
+    topCoin.setPosition(-430, 865, 0);
+    this.coinLabel = this.createLabel('CoinCount', topCoin, '💰 0', 29, new Color(255, 215, 0, 255));
+    const settings = this.createButton('SettingsButton', this.node, '⚙', 70, 70, new Color(255, 255, 255, 38), 31, 35);
+    settings.setPosition(450, 865, 0);
     settings.on(Button.EventType.CLICK, () => this.openSettings(), this);
 
     const logo = this.createNode('LogoArea', this.node);
@@ -76,7 +97,7 @@ export class HomeSceneBootstrap extends Component {
     this.createLabel('Subtitle', logo, '向上跳跃，收集星光 ✨', 28, new Color(255, 255, 255, 190)).node.setPosition(0, -67, 0);
     this.createLabel('TapHint', logo, '点击下方按钮开始冒险', 20, new Color(255, 255, 255, 92)).node.setPosition(0, -112, 0);
 
-    const start = this.createButton('StartButton', this.node, '🚀  开始游戏', 760, 116, new Color(245, 87, 108, 255), 38, 50);
+    const start = this.createButton('StartButton', this.node, '🚀  开始游戏', 660, 100, new Color(245, 87, 108, 255), 36, 44);
     start.setPosition(0, 310, 0);
     start.on(Button.EventType.CLICK, this.startGame, this);
 
@@ -90,19 +111,20 @@ export class HomeSceneBootstrap extends Component {
     ];
     entries.forEach((entry, index) => {
       const card = this.createFeatureCard(entry.name, entry.icon, entry.label, entry.desc, entry.accent);
-      card.setPosition(index % 2 === 0 ? -200 : 200, 125 - Math.floor(index / 2) * 205, 0);
+      card.setPosition(index % 2 === 0 ? -170 : 170, 140 - Math.floor(index / 2) * 175, 0);
       card.on(Button.EventType.CLICK, entry.action, this);
     });
 
     this.statusLabel = this.createLabel('HomeStatus', this.node, '👆 按住屏幕左侧或右侧移动', 22, new Color(255, 255, 255, 175));
-    this.statusLabel.node.setPosition(0, -715, 0);
+    this.statusLabel.node.setPosition(0, -620, 0);
     this.createLabel('Version', this.node, `v${GAME.version} · HTML 高清复刻`, 18, new Color(255, 255, 255, 76)).node.setPosition(0, -850, 0);
+    this.buildTransitionOverlay();
   }
 
   private buildBackground(): void {
     const background = this.createNode('HomeBackground', this.node);
     background.setSiblingIndex(0);
-    background.addComponent(UITransform).setContentSize(1080, 1920);
+    background.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
     const graphics = background.addComponent(Graphics);
     const colors = [new Color(15, 12, 41), new Color(48, 43, 99), new Color(36, 36, 62)];
     for (let i = 0; i < 48; i += 1) {
@@ -110,11 +132,16 @@ export class HomeSceneBootstrap extends Component {
       const segment = Math.min(1, Math.floor(t * 2));
       const local = t * 2 - segment;
       graphics.fillColor = this.mix(colors[segment], colors[segment + 1], local);
-      graphics.rect(-540, 960 - (i + 1) * 40, 1080, 42); graphics.fill();
+      const bandHeight = this.viewportHeight / 48;
+      graphics.rect(-this.viewportWidth * 0.5, this.viewportHeight * 0.5 - (i + 1) * bandHeight, this.viewportWidth, bandHeight + 2); graphics.fill();
     }
     for (let i = 0; i < 50; i += 1) {
       const star = this.createNode(`HomeParticle_${i}`, background);
-      star.setPosition(-510 + ((i * 181) % 1020), -900 + ((i * 277) % 1800), 0);
+      star.setPosition(
+        -this.viewportWidth * 0.47 + ((i * 181) % Math.max(1, this.viewportWidth * 0.94)),
+        -this.viewportHeight * 0.47 + ((i * 277) % Math.max(1, this.viewportHeight * 0.94)),
+        0,
+      );
       const art = star.addComponent(Graphics);
       art.fillColor = new Color(255, 255, 255, 30 + (i % 5) * 18);
       art.circle(0, 0, 1.5 + (i % 4)); art.fill();
@@ -251,8 +278,8 @@ export class HomeSceneBootstrap extends Component {
   private openOverlay(name: string, title: string, width: number, height: number): Node {
     this.closeOverlay();
     this.overlay = this.createNode(name, this.node);
-    this.overlay.addComponent(UITransform).setContentSize(1080, 1920);
-    const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 150); veil.rect(-540, -960, 1080, 1920); veil.fill();
+    this.overlay.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
+    const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 178); veil.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight); veil.fill();
     const panel = this.createPanel(`${name}Panel`, this.overlay, width, height, new Color(26, 26, 46, 250), 48);
     this.createLabel(`${name}Title`, panel, title, 43, Color.WHITE).node.setPosition(0, height * 0.5 - 85, 0);
     panel.setScale(0.92, 0.92, 1);
@@ -276,8 +303,29 @@ export class HomeSceneBootstrap extends Component {
   private startGame(): void {
     if (this.starting) return;
     this.starting = true;
+    this.startTransitionTime = 0;
+    this.gameSceneReady = false;
+    if (this.transitionOverlay) this.transitionOverlay.active = true;
+    if (this.transitionOpacity) this.transitionOpacity.opacity = 0;
     if (this.statusLabel) this.statusLabel.string = '准备开始...';
-    SceneNavigator.preload('Game', undefined, () => SceneNavigator.game());
+    SceneNavigator.preload('Game', undefined, () => { this.gameSceneReady = true; });
+  }
+
+  private buildTransitionOverlay(): void {
+    this.transitionOverlay = this.createNode('TransitionOverlay', this.node);
+    this.transitionOverlay.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
+    const art = this.transitionOverlay.addComponent(Graphics);
+    art.fillColor = new Color(255, 255, 255, 245);
+    art.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight); art.fill();
+    art.fillColor = new Color(245, 87, 108, 80);
+    for (let i = 0; i < 22; i += 1) {
+      const angle = i * 2.399;
+      const radius = 60 + (i % 6) * 68;
+      art.circle(Math.cos(angle) * radius, Math.sin(angle) * radius, 5 + (i % 4) * 3); art.fill();
+    }
+    this.transitionOpacity = this.transitionOverlay.addComponent(UIOpacity);
+    this.transitionOpacity.opacity = 0;
+    this.transitionOverlay.active = false;
   }
 
   private share(): void {
@@ -290,12 +338,12 @@ export class HomeSceneBootstrap extends Component {
   }
 
   private createFeatureCard(name: string, icon: string, title: string, desc: string, accent: Color): Node {
-    const card = this.createPanel(name, this.node, 360, 170, new Color(255, 255, 255, 24), 34);
+    const card = this.createPanel(name, this.node, 320, 150, new Color(255, 255, 255, 24), 30);
     card.addComponent(Button);
-    const stripe = card.getComponent(Graphics)!; stripe.fillColor = accent; stripe.roundRect(-180, 79, 360, 6, 3); stripe.fill();
-    this.createLabel(`${name}Icon`, card, icon, 49, Color.WHITE).node.setPosition(0, 38, 0);
-    this.createLabel(`${name}Title`, card, title, 27, Color.WHITE).node.setPosition(0, -17, 0);
-    this.createLabel(`${name}Desc`, card, desc, 18, new Color(255, 255, 255, 125)).node.setPosition(0, -57, 0);
+    const stripe = card.getComponent(Graphics)!; stripe.fillColor = accent; stripe.roundRect(-160, 69, 320, 6, 3); stripe.fill();
+    this.createLabel(`${name}Icon`, card, icon, 44, Color.WHITE).node.setPosition(0, 33, 0);
+    this.createLabel(`${name}Title`, card, title, 25, Color.WHITE).node.setPosition(0, -16, 0);
+    this.createLabel(`${name}Desc`, card, desc, 17, new Color(255, 255, 255, 125)).node.setPosition(0, -50, 0);
     this.addPressFeedback(card);
     return card;
   }

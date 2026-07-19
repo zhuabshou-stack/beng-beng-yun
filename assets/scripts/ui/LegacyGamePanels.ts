@@ -1,6 +1,6 @@
 import {
   _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Tween, UITransform, Vec3, VerticalTextAlignment, tween,
+  Tween, UITransform, Vec3, VerticalTextAlignment, tween, view,
 } from 'cc';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
@@ -149,8 +149,9 @@ export class LegacyGamePanels extends Component {
   private openOverlay(name: string, title: string, width: number, height: number): Node {
     this.closeOverlay();
     this.overlay = this.createNode(name, this.node);
-    this.overlay.addComponent(UITransform).setContentSize(1080, 1920);
-    const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 178); veil.rect(-540, -960, 1080, 1920); veil.fill();
+    const visible = view.getVisibleSize();
+    this.overlay.addComponent(UITransform).setContentSize(visible.width, visible.height);
+    const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 178); veil.rect(-visible.width * 0.5, -visible.height * 0.5, visible.width, visible.height); veil.fill();
     const panel = this.createPanel(`${name}Panel`, this.overlay, width, height, new Color(26, 26, 54, 252), 45);
     this.createLabel(`${name}Title`, panel, title, 42, Color.WHITE).node.setPosition(0, height * 0.5 - 76, 0);
     panel.setScale(0.92, 0.92, 1); tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();

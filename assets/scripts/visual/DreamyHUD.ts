@@ -5,6 +5,7 @@ import {
 import { GAME, SKILLS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
 import { DisplaySettings } from '../core/DisplaySettings';
+import { AudioManager } from '../core/AudioManager';
 import { CameraRig } from '../game/CameraRig';
 import { GameManager } from '../game/GameManager';
 import { DouyinBridge } from '../platform/DouyinBridge';
@@ -32,8 +33,12 @@ export class DreamyHUD extends Component {
   private progressLabel: Label | null = null;
   private progressGraphics: Graphics | null = null;
   private pausePanel: Node | null = null;
+  private settingsPanel: Node | null = null;
+  private soundSettingLabel: Label | null = null;
+  private musicSettingLabel: Label | null = null;
   private skillBar: Node | null = null;
   private readonly skillLabels = new Map<SkillId, Label>();
+  private readonly skillButtons = new Map<SkillId, Button>();
   private lastScore = -1;
   private lastCoins = -1;
   private lastStars = -1;
@@ -98,25 +103,26 @@ export class DreamyHUD extends Component {
       this.lastStars = data.stars;
     }
     this.updateCombo(data.combo);
-    const progress = Math.min(1, score / GAME.levelTarget);
+    const levelTarget = GAME.levelTarget * this.gameManager.currentLevel;
+    const progress = Math.min(1, score / levelTarget);
     if (Math.abs(progress - this.lastProgress) > 0.001) {
       this.lastProgress = progress;
       this.drawProgress(progress);
-      if (this.progressLabel) this.progressLabel.string = `云端旅程  ${score}/${GAME.levelTarget}`;
+      if (this.progressLabel) this.progressLabel.string = `云端旅程  ${score}/${levelTarget}`;
     }
-    if (this.pausePanel) this.pausePanel.active = this.gameManager.phase === 'paused';
+    if (this.pausePanel) this.pausePanel.active = this.gameManager.phase === 'paused' && !this.settingsPanel?.active;
     this.updateSkillBar();
   }
 
   private build(frames: HUDFrames): void {
     this.node.removeAllChildren();
-    const scoreChip = this.createGlassPanel('ScoreChip', 210, 96, 0.08);
-    this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 54, new Color(255, 255, 255, 255));
-    this.scoreLabel.node.setPosition(0, 9, 0);
-    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 22, new Color(235, 242, 255, 205));
-    this.bestLabel.node.setPosition(0, -32, 0);
+    const scoreChip = this.createNode('ScoreChip', this.node);
+    this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 44, new Color(255, 255, 255, 255));
+    this.scoreLabel.node.setPosition(0, 2, 0);
+    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 20, new Color(255, 255, 255, 155));
+    this.bestLabel.node.setPosition(0, -42, 0);
 
-    const coinChip = this.createGlassPanel('CoinChip', 180, 78, 0.22);
+    const coinChip = this.createNode('CoinChip', this.node);
     this.createIcon('CoinIcon', coinChip, frames.coinIcon, 'coin');
     this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 30, new Color(255, 235, 151, 255));
     this.coinLabel.node.setPosition(36, 0, 0);
@@ -134,6 +140,8 @@ export class DreamyHUD extends Component {
     homeButton.on(Button.EventType.CLICK, this.requestHome, this);
     const pauseButton = this.createGlassButton('PauseButton', frames.pauseIcon, 'pause');
     pauseButton.on(Button.EventType.CLICK, this.togglePause, this);
+    const settingsButton = this.createGlassButton('SettingsButton', null, 'settings');
+    settingsButton.on(Button.EventType.CLICK, this.openSettingsPanel, this);
 
     const progressPanel = this.createGlassPanel('LevelProgressBar', 650, 84, 0.3);
     const progressNode = this.createNode('ProgressFill', progressPanel);
@@ -143,22 +151,39 @@ export class DreamyHUD extends Component {
     const versionLabel = this.createLabel('VersionLabel', this.node, `v${GAME.version}`, 16, new Color(255, 255, 255, 115));
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
 
-    this.pausePanel = this.createGlassPanel('PausePanel', 600, 720, 0.92);
-    this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 48, Color.WHITE).node.setPosition(0, 285, 0);
+    this.pausePanel = this.createGlassPanel('PausePanel', 600, 820, 0.94);
+    this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 48, Color.WHITE).node.setPosition(0, 335, 0);
     const resume = this.createRoundedButton('ResumeButton', this.pausePanel, '继续游戏');
-    resume.setPosition(0, 185, 0);
+    resume.setPosition(0, 225, 0);
     resume.on(Button.EventType.CLICK, this.resume, this);
+    const restart = this.createRoundedButton('PauseRestartButton', this.pausePanel, '重新开始');
+    restart.setPosition(0, 115, 0);
+    restart.on(Button.EventType.CLICK, this.restart, this);
     const skills = this.createRoundedButton('PauseSkillButton', this.pausePanel, '⚡ 技能商店');
-    skills.setPosition(0, 70, 0); skills.on(Button.EventType.CLICK, () => this.onSkillsRequested?.(), this);
+    skills.setPosition(0, 5, 0); skills.on(Button.EventType.CLICK, () => this.onSkillsRequested?.(), this);
     const ranking = this.createRoundedButton('PauseRankButton', this.pausePanel, '🏆 排行榜');
-    ranking.setPosition(0, -45, 0); ranking.on(Button.EventType.CLICK, () => this.onRankingRequested?.(), this);
+    ranking.setPosition(0, -105, 0); ranking.on(Button.EventType.CLICK, () => this.onRankingRequested?.(), this);
     const skins = this.createRoundedButton('PauseSkinButton', this.pausePanel, '🎨 皮肤');
-    skins.setPosition(0, -160, 0); skins.on(Button.EventType.CLICK, () => this.onSkinsRequested?.(), this);
+    skins.setPosition(0, -215, 0); skins.on(Button.EventType.CLICK, () => this.onSkinsRequested?.(), this);
     const pauseHome = this.createRoundedButton('PauseHomeButton', this.pausePanel, '返回主页');
     pauseHome.setScale(0.78, 0.78, 1);
-    pauseHome.setPosition(0, -285, 0);
+    pauseHome.setPosition(0, -335, 0);
     pauseHome.on(Button.EventType.CLICK, this.requestHome, this);
     this.pausePanel.active = false;
+
+    this.settingsPanel = this.createGlassPanel('SettingsPanel', 560, 500, 0.96);
+    this.createLabel('SettingsTitle', this.settingsPanel, '⚙️ 设置', 44, Color.WHITE).node.setPosition(0, 185, 0);
+    const sound = this.createRoundedButton('SoundSettingButton', this.settingsPanel, '🔊 音效');
+    sound.setPosition(0, 72, 0); sound.on(Button.EventType.CLICK, this.toggleSound, this);
+    this.soundSettingLabel = sound.getChildByName('SoundSettingButtonLabel')?.getComponent(Label) ?? null;
+    const music = this.createRoundedButton('MusicSettingButton', this.settingsPanel, '🎵 音乐');
+    music.setPosition(0, -42, 0); music.on(Button.EventType.CLICK, this.toggleMusic, this);
+    this.musicSettingLabel = music.getChildByName('MusicSettingButtonLabel')?.getComponent(Label) ?? null;
+    const closeSettings = this.createRoundedButton('CloseSettingsButton', this.settingsPanel, '关闭');
+    closeSettings.setScale(0.78, 0.78, 1); closeSettings.setPosition(0, -170, 0);
+    closeSettings.on(Button.EventType.CLICK, this.closeSettingsPanel, this);
+    this.settingsPanel.active = false;
+    this.refreshAudioSettingLabels();
 
     const visible = view.getVisibleSize();
     this.layout(visible.width, visible.height);
@@ -175,14 +200,16 @@ export class DreamyHUD extends Component {
     const top = halfHeight - safe.top / scale - 62;
     this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 62, top, 0);
     this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 142, top, 0);
+    this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 222, top, 0);
     this.node.getChildByName('ScoreChip')?.setPosition(0, top - 5, 0);
     this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 100, top, 0);
     this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 102, 0);
     this.node.getChildByName('ComboLabel')?.setPosition(0, top - 158, 0);
-    this.skillBar?.setPosition(halfWidth - safe.right / scale - 78, top - 105, 0);
+    this.skillBar?.setPosition(halfWidth - safe.right / scale - 48, top - 104, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);
     this.pausePanel?.setPosition(0, 0, 0);
+    this.settingsPanel?.setPosition(0, 0, 0);
   }
 
   private drawProgress(progress: number): void {
@@ -247,10 +274,44 @@ export class DreamyHUD extends Component {
     if (this.pausePanel) this.pausePanel.active = false;
   }
 
+  private restart(): void {
+    if (this.pausePanel) this.pausePanel.active = false;
+    this.gameManager?.onRestartRequested?.();
+  }
+
+  private openSettingsPanel(): void {
+    if (!this.gameManager) return;
+    if (this.gameManager.phase === 'playing') this.gameManager.pause();
+    if (this.pausePanel) this.pausePanel.active = false;
+    if (this.settingsPanel) this.settingsPanel.active = true;
+    this.refreshAudioSettingLabels();
+  }
+
+  private closeSettingsPanel(): void {
+    if (this.settingsPanel) this.settingsPanel.active = false;
+    if (this.gameManager?.phase === 'paused' && this.pausePanel) this.pausePanel.active = true;
+  }
+
+  private toggleSound(): void {
+    AudioManager.setSoundEnabled(!AudioManager.soundEnabled);
+    this.refreshAudioSettingLabels();
+  }
+
+  private toggleMusic(): void {
+    AudioManager.setMusicEnabled(!AudioManager.musicEnabled);
+    this.refreshAudioSettingLabels();
+  }
+
+  private refreshAudioSettingLabels(): void {
+    if (this.soundSettingLabel) this.soundSettingLabel.string = `🔊 音效：${AudioManager.soundEnabled ? '开' : '关'}`;
+    if (this.musicSettingLabel) this.musicSettingLabel.string = `🎵 音乐：${AudioManager.musicEnabled ? '开' : '关'}`;
+  }
+
   private rebuildSkillBar(): void {
     if (!this.skillBar || !this.gameManager) return;
     this.skillBar.removeAllChildren();
     this.skillLabels.clear();
+    this.skillButtons.clear();
     const active = LegacyProgression.loadActiveSkills();
     const data = LegacyProgression.loadSkills();
     active.forEach((id, index) => {
@@ -259,9 +320,14 @@ export class DreamyHUD extends Component {
       if (!definition) return;
       const button = this.createGlassPanel(`Skill_${id}`, 76, 76, 0.38);
       button.parent = this.skillBar;
-      button.setPosition(0, -index * 90, 0);
-      button.addComponent(Button);
+      button.setPosition(-index * 88, 0, 0);
+      const buttonComponent = button.addComponent(Button);
+      this.skillButtons.set(id, buttonComponent);
       this.createLabel(`SkillIcon_${id}`, button, definition.icon, 31, Color.WHITE).node.setPosition(0, 10, 0);
+      const key = SKILLS.findIndex((skill) => skill.id === id) + 1;
+      const keyLabel = this.createLabel(`SkillKey_${id}`, button, `${key}`, 13, new Color(255, 255, 255, 135));
+      keyLabel.node.getComponent(UITransform)?.setContentSize(24, 24);
+      keyLabel.node.setPosition(25, 25, 0);
       const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 14, new Color(255, 215, 0, 255));
       label.node.setPosition(0, -24, 0);
       this.skillLabels.set(id, label);
@@ -277,6 +343,8 @@ export class DreamyHUD extends Component {
       const cooldown = this.gameManager.getSkillCooldown(id);
       label.string = cooldown > 0 ? `${Math.ceil(cooldown)}s` : `${data[id].uses}`;
       label.color = cooldown > 0 || data[id].uses <= 0 ? new Color(255, 120, 120, 220) : new Color(255, 215, 0, 255);
+      const button = this.skillButtons.get(id);
+      if (button) button.interactable = cooldown <= 0 && data[id].uses > 0;
     }
   }
 
@@ -295,7 +363,7 @@ export class DreamyHUD extends Component {
     return node;
   }
 
-  private createGlassButton(name: string, frame: SpriteFrame | null, kind: 'home' | 'pause'): Node {
+  private createGlassButton(name: string, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'settings'): Node {
     const node = this.createGlassPanel(name, 66, 66, 0.28);
     node.addComponent(Button);
     this.createIcon(`${name}Icon`, node, frame, kind);
@@ -303,7 +371,7 @@ export class DreamyHUD extends Component {
     return node;
   }
 
-  private createIcon(name: string, parent: Node, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'coin'): Node {
+  private createIcon(name: string, parent: Node, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'coin' | 'settings'): Node {
     const node = this.createNode(name, parent);
     const transform = node.addComponent(UITransform);
     transform.setContentSize(42, 42);
@@ -321,9 +389,18 @@ export class DreamyHUD extends Component {
       graphics.roundRect(-12, -16, 24, 18, 3); graphics.fill();
     } else if (kind === 'pause') {
       graphics.roundRect(-12, -15, 8, 30, 3); graphics.roundRect(4, -15, 8, 30, 3); graphics.fill();
-    } else {
+    } else if (kind === 'coin') {
       graphics.circle(-34, 0, 18); graphics.fill();
       graphics.strokeColor = new Color(255, 249, 204, 255); graphics.lineWidth = 3; graphics.circle(-34, 0, 11); graphics.stroke();
+    } else {
+      graphics.circle(0, 0, 13); graphics.stroke();
+      graphics.circle(0, 0, 5); graphics.stroke();
+      for (let i = 0; i < 8; i += 1) {
+        const angle = i * Math.PI / 4;
+        graphics.moveTo(Math.cos(angle) * 15, Math.sin(angle) * 15);
+        graphics.lineTo(Math.cos(angle) * 20, Math.sin(angle) * 20);
+      }
+      graphics.stroke();
     }
     return node;
   }

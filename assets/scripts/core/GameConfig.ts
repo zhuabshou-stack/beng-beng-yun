@@ -1,5 +1,5 @@
 export const GAME = Object.freeze({
-  version: '2.9.2',
+  version: '2.9.3',
   // HTML v2.1.1 是本分支的唯一玩法规格。原版使用 60 FPS 帧单位；
   // Cocos 世界统一放大 2 倍，再换算为秒单位，保留相同的相对跳高和云间距。
   legacyReferenceFps: 60,
@@ -16,6 +16,10 @@ export const GAME = Object.freeze({
   horizontalAcceleration: 2160,
   horizontalDamping: 0.92,
   playerRadius: 36,
+  playerVisualHalfWidth: 60,
+  screenEdgePadding: 20,
+  physicsMaxStep: 1 / 60,
+  physicsMaxFrameDelta: 0.1,
   uiScale: 1,
   accessibilityUiScale: 1.18,
   playerVisualScale: 1,

@@ -19,14 +19,15 @@ export class CameraRig extends Component {
 
   lateUpdate(dt: number): void {
     if (!this.target) return;
+    const frameDt = Math.min(Math.max(0, dt), GAME.physicsMaxFrameDelta);
     const followRate = GAME.cameraFollowRate * GAME.tempoScale;
     const targetLine = this.node.position.y + this.viewportHeight * (0.5 - GAME.cameraLineRatio);
     if (this.target.position.y <= targetLine) return;
     const wantedY = this.target.position.y - this.viewportHeight * (0.5 - GAME.cameraLineRatio);
     const pos = this.node.position.clone();
     const distance = wantedY - pos.y;
-    const smoothedStep = distance * (1 - Math.exp(-followRate * dt));
-    const maximumStep = GAME.cameraMaxFollowSpeed * dt;
+    const smoothedStep = distance * (1 - Math.exp(-followRate * frameDt));
+    const maximumStep = GAME.cameraMaxFollowSpeed * frameDt;
     pos.y += Math.min(maximumStep, Math.max(0, smoothedStep));
     this.node.setPosition(pos);
     this.highestY = Math.max(this.highestY, pos.y);

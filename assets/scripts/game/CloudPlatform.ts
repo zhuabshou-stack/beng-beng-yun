@@ -14,6 +14,8 @@ export class CloudPlatform extends Component {
   private brokenElapsed = 0;
   private phase = Math.random() * Math.PI * 2;
   private originX = 0;
+  private minimumX = -Infinity;
+  private maximumX = Infinity;
   private readonly restingScale = new Vec3(1, 1, 1);
 
   configure(type: CloudType, position: Vec3, widthScale = 1, visualVariant = 0): void {
@@ -32,6 +34,15 @@ export class CloudPlatform extends Component {
     opacity.opacity = 255;
     this.node.getScale(this.restingScale);
     this.originX = position.x;
+  }
+
+  setHorizontalBounds(minimumX: number, maximumX: number): void {
+    this.minimumX = minimumX;
+    this.maximumX = maximumX;
+    this.originX = Math.max(minimumX, Math.min(maximumX, this.originX));
+    const pos = this.node.position.clone();
+    pos.x = Math.max(minimumX, Math.min(maximumX, pos.x));
+    this.node.setPosition(pos);
   }
 
   playLandingBounce(spring: boolean): void {
@@ -56,7 +67,10 @@ export class CloudPlatform extends Component {
     if (this.type !== 'moving') return;
     this.phase += dt * GAME.movingCloudAngularSpeed;
     const pos = this.node.position.clone();
-    pos.x = this.originX + Math.sin(this.phase) * GAME.movingCloudAmplitude;
+    pos.x = Math.max(
+      this.minimumX,
+      Math.min(this.maximumX, this.originX + Math.sin(this.phase) * GAME.movingCloudAmplitude),
+    );
     this.node.setPosition(pos);
   }
 

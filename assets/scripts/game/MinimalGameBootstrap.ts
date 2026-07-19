@@ -20,6 +20,13 @@ import { StorageService } from '../platform/StorageService';
 import { LegacyGamePanels } from '../ui/LegacyGamePanels';
 const { ccclass, property } = _decorator;
 
+interface EntryCloud {
+  node: Node;
+  baseX: number;
+  baseY: number;
+  phase: number;
+}
+
 @ccclass('MinimalGameBootstrap')
 export class MinimalGameBootstrap extends Component {
   @property(SpriteFrame) playerSpriteFrame: SpriteFrame | null = null;
@@ -40,17 +47,25 @@ export class MinimalGameBootstrap extends Component {
   @property(SpriteFrame) logoSpriteFrame: SpriteFrame | null = null;
 
   private gameManager: GameManager | null = null;
+  private gameCamera: Camera | null = null;
   private cameraRig: CameraRig | null = null;
   private player: PlayerController | null = null;
   private world: Node | null = null;
   private worldOpacity: UIOpacity | null = null;
   private hudNode: Node | null = null;
+  private resultOverlay: Node | null = null;
   private resultPanel: Node | null = null;
   private tutorialPanel: Node | null = null;
   private entryOverlay: Node | null = null;
   private entryLabel: Label | null = null;
+  private entryAvatar: Node | null = null;
+  private entryAvatarOpacity: UIOpacity | null = null;
+  private entryFlashOpacity: UIOpacity | null = null;
+  private readonly entryClouds: EntryCloud[] = [];
   private entryActive = false;
   private entryTime = 0;
+  private lastViewportWidth = 0;
+  private lastViewportHeight = 0;
   private runtimeRole: 'Boot' | 'Home' | 'Game' = 'Game';
 
   onLoad(): void {
@@ -67,11 +82,13 @@ export class MinimalGameBootstrap extends Component {
     }
 
     const canvasTransform = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
-    canvasTransform.setContentSize(1080, 1920);
+    const initialVisible = view.getVisibleSize();
+    canvasTransform.setContentSize(initialVisible.width, initialVisible.height);
 
     const cameraNode = this.node.getChildByName('Camera') ?? this.createNode('Camera');
     const camera = cameraNode.getComponent(Camera) ?? cameraNode.addComponent(Camera);
-    camera.orthoHeight = 960 * GAME.cameraVisibleHeight;
+    this.gameCamera = camera;
+    camera.orthoHeight = initialVisible.height * 0.5 * GAME.cameraVisibleHeight;
 
     const background = this.createNode('Background');
     background.setSiblingIndex(0);
@@ -109,6 +126,7 @@ export class MinimalGameBootstrap extends Component {
     this.gameManager.cameraRig = this.cameraRig;
     this.gameManager.touchArea = this.node;
     this.gameManager.refreshViewport();
+    this.refreshViewportLayout(true);
 
     environment.configure(cameraNode, {
       sky: this.skySpriteFrame,
@@ -162,20 +180,32 @@ export class MinimalGameBootstrap extends Component {
 
   update(dt: number): void {
     if (this.runtimeRole !== 'Game') return;
+    this.refreshViewportLayout();
     const cameraY = this.cameraRig?.node.position.y ?? 0;
     this.entryOverlay?.setPosition(0, cameraY, 0);
-    this.resultPanel?.setPosition(0, cameraY, 0);
+    this.resultOverlay?.setPosition(0, cameraY, 0);
     this.tutorialPanel?.setPosition(0, cameraY, 0);
-    if (this.entryActive) this.updateEntry(Math.min(dt, 1 / 30));
+    if (this.entryActive) this.updateEntry(dt);
 
-    if (this.resultPanel && this.gameManager?.phase === 'gameover' && !this.resultPanel.active) {
+    if (this.resultPanel && this.resultOverlay && this.gameManager?.phase === 'gameover' && !this.resultOverlay.active) {
       const data = this.gameManager.data;
       const score = this.resultPanel.getChildByName('ResultScore')?.getComponent(Label);
       if (score) score.string = `分数 ${Math.floor(data.score)}`;
       const stats = this.resultPanel.getChildByName('ResultStats')?.getComponent(Label);
       if (stats) stats.string = `高度 ${Math.floor(data.heightMeters)}m   金币 ${data.runCoins}   星星 ${data.stars}\n最高连击 ${data.maxCombo}`;
-      this.resultPanel.active = true;
+      this.resultOverlay.active = true;
     }
+  }
+
+  private refreshViewportLayout(force = false): void {
+    const visible = view.getVisibleSize();
+    if (!force && Math.abs(visible.width - this.lastViewportWidth) < 1 && Math.abs(visible.height - this.lastViewportHeight) < 1) return;
+    this.lastViewportWidth = visible.width;
+    this.lastViewportHeight = visible.height;
+    this.node.getComponent(UITransform)?.setContentSize(visible.width, visible.height);
+    if (this.gameCamera) this.gameCamera.orthoHeight = visible.height * 0.5 * GAME.cameraVisibleHeight;
+    if (this.cameraRig) this.cameraRig.viewportHeight = visible.height * GAME.cameraVisibleHeight;
+    this.gameManager?.refreshViewport();
   }
 
   private beginEntry(): void {
@@ -184,23 +214,43 @@ export class MinimalGameBootstrap extends Component {
     this.entryTime = 0;
     this.entryActive = true;
     if (this.entryOverlay) this.entryOverlay.active = true;
+    if (this.entryLabel) this.entryLabel.string = '准备开始...';
+    if (this.entryAvatarOpacity) this.entryAvatarOpacity.opacity = 255;
+    if (this.entryFlashOpacity) this.entryFlashOpacity.opacity = 0;
     if (this.hudNode) this.hudNode.active = false;
     if (this.worldOpacity) this.worldOpacity.opacity = 145;
     this.player.node.setScale(0.72, 0.72, 1);
   }
 
   private updateEntry(dt: number): void {
-    this.entryTime += dt;
-    const progress = math.clamp01(this.entryTime / 0.86);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    if (this.worldOpacity) this.worldOpacity.opacity = Math.round(145 + eased * 110);
-    this.player?.node.setScale(0.72 + eased * 0.28, 0.72 + eased * 0.28, 1);
-    if (this.entryLabel) {
-      this.entryLabel.string = progress < 0.28 ? '3' : progress < 0.54 ? '2' : progress < 0.78 ? '1' : '出发';
-      const pulse = 0.92 + Math.sin(this.entryTime * 21) * 0.06;
-      this.entryLabel.node.setScale(pulse, pulse, 1);
+    this.entryTime += Math.min(dt, GAME.physicsMaxFrameDelta);
+    const reveal = math.clamp01(this.entryTime / 0.55);
+    const travel = math.clamp01((this.entryTime - 0.55) / 0.8);
+    const easedTravel = travel * travel * (3 - 2 * travel);
+    for (const cloud of this.entryClouds) {
+      cloud.node.setPosition(cloud.baseX, cloud.baseY + Math.sin(this.entryTime * 1.8 + cloud.phase) * 15, 0);
     }
-    if (progress < 1) return;
+    if (this.entryAvatar) {
+      const bounce = reveal < 1 ? Math.abs(Math.sin(reveal * Math.PI * 3.5)) * 0.14 : 0;
+      const scale = travel > 0 ? math.lerp(1, 0.1, easedTravel) : math.lerp(0.3, 1, reveal) + bounce;
+      this.entryAvatar.setScale(scale, scale, 1);
+      this.entryAvatar.setPosition(0, easedTravel * this.lastViewportHeight * 0.6, 0);
+    }
+    if (this.entryAvatarOpacity) this.entryAvatarOpacity.opacity = Math.round(255 * (1 - easedTravel * 0.5));
+    const worldReveal = math.clamp01((this.entryTime - 0.85) / 0.75);
+    if (this.worldOpacity) this.worldOpacity.opacity = Math.round(145 + worldReveal * 110);
+    this.player?.node.setScale(0.72 + worldReveal * 0.28, 0.72 + worldReveal * 0.28, 1);
+    if (this.entryLabel) {
+      this.entryLabel.string = this.entryTime < 0.78 ? '准备开始...' : '🚀 出发!';
+      const pulse = 0.94 + Math.sin(this.entryTime * 15) * 0.06;
+      this.entryLabel.node.setScale(pulse, pulse, 1);
+      this.entryLabel.node.active = this.entryTime >= 0.68;
+    }
+    if (this.entryFlashOpacity) {
+      const flash = math.clamp01((this.entryTime - 1.3) / 0.18);
+      this.entryFlashOpacity.opacity = Math.round(Math.sin(flash * Math.PI) * 220);
+    }
+    if (this.entryTime < 1.66) return;
     this.entryActive = false;
     if (this.entryOverlay) this.entryOverlay.active = false;
     if (this.hudNode) this.hudNode.active = true;
@@ -210,12 +260,49 @@ export class MinimalGameBootstrap extends Component {
 
   private buildEntryOverlay(): void {
     this.entryOverlay = this.createNode('GameEntryOverlay');
-    this.entryLabel = this.createLabel('CountdownLabel', this.entryOverlay, '3', 92, Vec3.ZERO);
+    this.entryOverlay.addComponent(UITransform).setContentSize(this.lastViewportWidth || 1080, this.lastViewportHeight || 1920);
+    const cloudRoot = this.createNode('EntryClouds', this.entryOverlay);
+    for (let i = 0; i < 12; i += 1) {
+      const cloud = this.createNode(`EntryCloud_${i}`, cloudRoot);
+      const width = 60 + (i % 5) * 32;
+      const x = -500 + (i * 193) % 1000;
+      const y = -760 + (i * 283) % 1520;
+      const art = cloud.addComponent(Graphics);
+      art.fillColor = new Color(255, 255, 255, 185 + (i % 3) * 20);
+      art.ellipse(0, 0, width * 0.5, 20 + (i % 3) * 6);
+      art.ellipse(-width * 0.18, 12, width * 0.24, 24);
+      art.ellipse(width * 0.2, 10, width * 0.21, 21);
+      art.fill();
+      this.entryClouds.push({ node: cloud, baseX: x, baseY: y, phase: i * 0.73 });
+    }
+    this.entryAvatar = this.createNode('EntryAvatar', this.entryOverlay);
+    this.entryAvatar.addComponent(UITransform).setContentSize(160, 160);
+    this.entryAvatarOpacity = this.entryAvatar.addComponent(UIOpacity);
+    const avatar = this.entryAvatar.addComponent(Graphics);
+    avatar.fillColor = new Color(255, 224, 102, 255); avatar.circle(0, 0, 76); avatar.fill();
+    avatar.fillColor = new Color(255, 179, 71, 255); avatar.circle(5, -7, 66); avatar.fill();
+    avatar.fillColor = new Color(45, 45, 55, 255); avatar.circle(-20, 14, 7); avatar.circle(20, 14, 7); avatar.fill();
+    avatar.fillColor = new Color(255, 150, 150, 135); avatar.ellipse(-35, -8, 13, 8); avatar.ellipse(35, -8, 13, 8); avatar.fill();
+    this.entryLabel = this.createLabel('EntryText', this.entryOverlay, '准备开始...', 38, Vec3.ZERO);
     this.entryLabel.color = Color.WHITE;
+    this.entryLabel.node.setPosition(0, -150, 0);
+    const flash = this.createNode('EntryFlash', this.entryOverlay);
+    flash.addComponent(UITransform).setContentSize(this.lastViewportWidth || 1080, this.lastViewportHeight || 1920);
+    const flashArt = flash.addComponent(Graphics);
+    flashArt.fillColor = Color.WHITE;
+    flashArt.rect(-(this.lastViewportWidth || 1080) * 0.5, -(this.lastViewportHeight || 1920) * 0.5, this.lastViewportWidth || 1080, this.lastViewportHeight || 1920);
+    flashArt.fill();
+    this.entryFlashOpacity = flash.addComponent(UIOpacity);
+    this.entryFlashOpacity.opacity = 0;
   }
 
   private buildResultPanel(): void {
-    this.resultPanel = this.createGraphicsNode('ResultPanel', 660, 560);
+    const visible = view.getVisibleSize();
+    this.resultOverlay = this.createGraphicsNode('ResultOverlay', visible.width, visible.height);
+    const veil = this.resultOverlay.addComponent(Graphics);
+    veil.fillColor = new Color(0, 0, 0, 90);
+    veil.rect(-visible.width * 0.5, -visible.height * 0.5, visible.width, visible.height); veil.fill();
+    this.resultPanel = this.createGraphicsNode('ResultPanel', 660, 560, this.resultOverlay);
     this.resultPanel.setScale(DisplaySettings.getUiScale(), DisplaySettings.getUiScale(), 1);
     const panel = this.resultPanel.addComponent(Graphics);
     panel.fillColor = new Color(38, 39, 92, 238);
@@ -231,7 +318,7 @@ export class MinimalGameBootstrap extends Component {
     restart.setPosition(0, -115, 0); restart.on(Button.EventType.CLICK, this.restart, this);
     const home = this.createButton('ResultHomeButton', this.resultPanel, '返回主页', 260, 72, new Color(104, 128, 191, 255), 25);
     home.setPosition(0, -205, 0); home.on(Button.EventType.CLICK, this.returnHome, this);
-    this.resultPanel.active = false;
+    this.resultOverlay.active = false;
   }
 
   private buildTutorialPanel(): void {
@@ -262,7 +349,7 @@ export class MinimalGameBootstrap extends Component {
 
   private restart(): void {
     if (!this.gameManager) return;
-    if (this.resultPanel) this.resultPanel.active = false;
+    if (this.resultOverlay) this.resultOverlay.active = false;
     this.gameManager.startRun();
   }
 

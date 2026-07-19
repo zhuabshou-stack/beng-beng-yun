@@ -189,16 +189,25 @@ export class GameManager extends Component {
 
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
-    const clampedDt = Math.min(dt, 1 / 30);
-    this.gameTime += clampedDt;
-    this.runPlayTime += clampedDt;
+    let remaining = Math.min(Math.max(0, dt), GAME.physicsMaxFrameDelta);
+    while (remaining > 0 && this.phase === 'playing') {
+      const step = Math.min(remaining, GAME.physicsMaxStep);
+      this.simulateStep(step);
+      remaining -= step;
+    }
+  }
+
+  private simulateStep(dt: number): void {
+    if (!this.player || !this.cloudManager) return;
+    this.gameTime += dt;
+    this.runPlayTime += dt;
     this.previousPlayerY = this.player.node.position.y;
-    this.updateSkills(clampedDt);
-    this.saveHistory(clampedDt);
-    this.player.simulate(clampedDt, this.viewportWidth, this.slowmoRemaining > 0 ? 0.5 : 1);
+    this.updateSkills(dt);
+    this.saveHistory(dt);
+    this.player.simulate(dt, this.viewportWidth, this.slowmoRemaining > 0 ? 0.5 : 1);
     if (this.featherRemaining > 0 && this.player.velocity.y < 0) {
-      this.player.velocity.y *= Math.pow(GAME.featherFallDampingPerFrame, clampedDt * GAME.legacyReferenceFps);
-      this.featherRemaining = Math.max(0, this.featherRemaining - clampedDt);
+      this.player.velocity.y *= Math.pow(GAME.featherFallDampingPerFrame, dt * GAME.legacyReferenceFps);
+      this.featherRemaining = Math.max(0, this.featherRemaining - dt);
     }
     if (this.doubleJumpReady && this.player.velocity.y < 0) {
       this.doubleJumpReady = false;
@@ -217,7 +226,7 @@ export class GameManager extends Component {
         this.player.node.position,
         GAME.magnetRadius,
         GAME.magnetSpeed,
-        clampedDt,
+        dt,
       );
     }
 
@@ -434,7 +443,7 @@ export class GameManager extends Component {
       this.applyCombinedInput();
       return;
     }
-    if (code === KeyCode.ESCAPE && !this.escapeHeld) {
+    if ((code === KeyCode.ESCAPE || code === KeyCode.KEY_P) && !this.escapeHeld) {
       this.escapeHeld = true;
       if (this.phase === 'playing') this.pause();
       else if (this.phase === 'paused') this.resume();
@@ -458,7 +467,7 @@ export class GameManager extends Component {
       this.pressedMovementKeys.delete(code);
       this.applyCombinedInput();
     }
-    if (code === KeyCode.ESCAPE) this.escapeHeld = false;
+    if (code === KeyCode.ESCAPE || code === KeyCode.KEY_P) this.escapeHeld = false;
     if (code === KeyCode.KEY_R) this.restartHeld = false;
   }
 

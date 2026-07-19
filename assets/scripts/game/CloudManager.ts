@@ -34,13 +34,21 @@ export class CloudManager extends Component {
     const node = this.cloudPrefab ? instantiate(this.cloudPrefab) : new Node('Cloud');
     node.parent = this.node;
     const cloud = node.getComponent(CloudPlatform) ?? node.addComponent(CloudPlatform);
-    const maxX = Math.max(0, viewportWidth * 0.5 - GAME.cloudWidth * 0.6);
-    const x = math.clamp(this.lastX + (Math.random() - 0.5) * GAME.cloudHorizontalRange * 2, -maxX, maxX);
-    this.lastX = x;
     const type = forcedType ?? this.randomType();
     const visualVariant = 1;
     const widthScale = 1;
+    const visualHalfWidth = GAME.cloudWidth * widthScale * GAME.cloudVisualScale * 0.5;
+    const centerLimit = Math.max(0, viewportWidth * 0.5 - GAME.screenEdgePadding - visualHalfWidth);
+    const movementReserve = type === 'moving' ? Math.min(GAME.movingCloudAmplitude, centerLimit) : 0;
+    const originLimit = Math.max(0, centerLimit - movementReserve);
+    const x = math.clamp(
+      this.lastX + (Math.random() - 0.5) * GAME.cloudHorizontalRange * 2,
+      -originLimit,
+      originLimit,
+    );
+    this.lastX = x;
     cloud.configure(type, new Vec3(x, y, 0), widthScale, visualVariant);
+    cloud.setHorizontalBounds(-centerLimit, centerLimit);
     if (!this.cloudPrefab) this.ensureVisual(node, cloud);
     this.clouds.push(cloud);
     this.onCloudSpawned?.(cloud);
