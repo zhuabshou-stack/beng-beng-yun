@@ -1,7 +1,7 @@
 import { AudioClip, AudioSource, Node, director, isValid } from 'cc';
 import { StorageService } from '../platform/StorageService';
 
-export type SoundCue = 'ui' | 'jump' | 'spring' | 'coin' | 'star' | 'combo' | 'dash' | 'milestone' | 'gameOver';
+export type SoundCue = 'ui' | 'jump' | 'spring' | 'coin' | 'star' | 'combo' | 'milestone' | 'gameOver';
 
 const SOUND_KEY = 'cloudBounceSound';
 const MUSIC_KEY = 'cloudBounceMusic';

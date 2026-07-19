@@ -19,13 +19,11 @@ export class CloudManager extends Component {
   readonly clouds: CloudPlatform[] = [];
   onCloudSpawned: ((cloud: CloudPlatform) => void) | null = null;
   private lastX = 0;
-  private specialStreak = 0;
 
   reset(viewportWidth: number, startY: number): void {
     for (const cloud of this.clouds) cloud.node.destroy();
     this.clouds.length = 0;
     this.lastX = 0;
-    this.specialStreak = 0;
 
     for (let y = startY; y < 1000; y += GAME.cloudGap) {
       this.spawn(y, viewportWidth, y === startY ? 'normal' : undefined);
@@ -37,12 +35,11 @@ export class CloudManager extends Component {
     node.parent = this.node;
     const cloud = node.getComponent(CloudPlatform) ?? node.addComponent(CloudPlatform);
     const maxX = Math.max(0, viewportWidth * 0.5 - GAME.cloudWidth * 0.6);
-    const x = math.clamp(this.lastX + (Math.random() - 0.5) * 180, -maxX, maxX);
+    const x = math.clamp(this.lastX + (Math.random() - 0.5) * GAME.cloudHorizontalRange * 2, -maxX, maxX);
     this.lastX = x;
     const type = forcedType ?? this.randomType();
-    this.specialStreak = type === 'normal' ? 0 : this.specialStreak + 1;
-    const visualVariant = type === 'normal' ? Math.floor(Math.random() * 3) : 1;
-    const widthScale = type === 'normal' ? [0.90, 1, 1.08][visualVariant] : 1;
+    const visualVariant = 1;
+    const widthScale = 1;
     cloud.configure(type, new Vec3(x, y, 0), widthScale, visualVariant);
     if (!this.cloudPrefab) this.ensureVisual(node, cloud);
     this.clouds.push(cloud);
@@ -53,7 +50,7 @@ export class CloudManager extends Component {
   ensureAhead(topY: number, viewportWidth: number): void {
     let highest = this.clouds.reduce((value, cloud) => Math.max(value, cloud.node.position.y), -Infinity);
     while (highest < topY) {
-      highest += GAME.cloudGap + Math.random() * 40;
+      highest += GAME.cloudGap + Math.random() * GAME.cloudGapRandom;
       this.spawn(highest, viewportWidth);
     }
   }
@@ -69,9 +66,8 @@ export class CloudManager extends Component {
 
   private randomType(): CloudType {
     if (!this.enableSpecialClouds) return 'normal';
-    if (this.specialStreak >= 2) return 'normal';
     const random = Math.random();
-    // 沿用浏览器旧版的保守分布：普通 75%、弹簧 5%、脆弱 10%、移动 10%。
+    // HTML v2.1.1：普通 75%、弹簧 5%、脆弱 10%、移动 10%，不限制连续特殊云。
     if (random < 0.05) return 'spring';
     if (random < 0.15) return 'fragile';
     if (random < 0.25) return 'moving';

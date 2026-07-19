@@ -1,69 +1,88 @@
 # 《蹦蹦云》当前交接
 
 更新时间：2026-07-19
-当前版本：v2.8.0
-引擎：Cocos Creator 3.8.8 + TypeScript
+当前版本：v2.9.2 HTML 高一致度迁移试玩版
+当前分支：`agent/html-parity`
+起点提交：`ee11e1c12532754493f5ee62016f7d6bcd18590e`
 项目：`D:\cesi2\蹦蹦云-Cocos工程\cese`
-只读备份：`D:\cesi2\版本备份\游戏1-蹦蹦云\v2.8.0`
+只读备份：`D:\cesi2\版本备份\游戏1-蹦蹦云\v2.9.2`
 
-## 场景与构建边界
+## 分支和保护边界
 
-- 正式流程：`Boot.scene → Home.scene → Game.scene → Home.scene`。
-- `Main.scene` 保留不改；`HomeShell.scene` 保留但不参与正式构建。
-- 抖音构建只包含 Boot、Home、Game，Boot 是初始场景，方向为 Portrait。
-- `build/`、`library/`、`temp/`、`local/`、`profiles/` 是本机生成或私有状态，不提交 Git。
+- `master` 保持不动。
+- `agent/v2.8.0` 保留为备份，不再修改。
+- HTML 迁移只在 `agent/html-parity`。
+- 不合并 master，等待用户试玩确认。
+- `D:\cesi2\游戏本体`、所有 `legacy` 和历史 `版本备份` 只读。
 
-## v2.8.0 已完成
+## 正式场景与构建
 
-- 更舒展的普通跳跃、更快水平响应、短惯性收束、指数平滑镜头和追赶速度上限。
-- 普通/精准/弹簧落云反馈，分级 Combo，Combo 8/12 冲刺完整生命周期。
-- 金币、星星、HUD 数字动画；拖尾、粒子、浮字固定对象池。
-- 主页、游戏 HUD、暂停、结算重新整理；标准 UI / 大字模式保持有效。
-- 本地排行榜前十、累计统计、音效/音乐持久化开关、教学重置。
-- 统一 AudioManager 接口；没有正式素材时静默工作，不下载未知素材。
-- 首次分步教学、里程碑和基础旅程完成反馈。
+- 流程：`Boot.scene → Home.scene → Game.scene → Home.scene`。
+- 正式构建只包含 Boot、Home、Game；Boot 是初始场景。
+- `Main.scene` 和 `HomeShell.scene` 保留但不参与正式构建。
+- Portrait 竖屏。
+- 浏览器目录：`D:\cesi2\蹦蹦云-Cocos工程\cese\build\web-mobile-html-parity`。
+- 抖音开发者工具导入目录：`D:\cesi2\蹦蹦云-Cocos工程\cese\build\bytedance-mini-game`。
+- `build/`、`profiles/`、`library/`、`temp/`、`local/` 不提交 Git。
+
+## 已完成迁移
+
+- 首页、游戏、暂停、结算、关卡完成、皮肤、技能、排行、统计、设置和首次教学页面。
+- 旧版跳跃/水平移动/镜头/云生成/碰撞/Combo/分数/高度/关卡目标。
+- 普通、弹簧、脆弱、移动四种云。
+- 金币、星星、羽毛；六套皮肤；护盾、磁铁、慢动作、幽灵、二段跳、时光倒流。
+- 旧版落云、弹簧、Combo、收集、里程碑粒子/浮字/拖尾/震屏。
+- 最高分、金币、前十排行、皮肤、技能和设置持久化；兼容旧存储键。
+- 保留 SceneNavigator、StorageService、DouyinBridge、AudioManager 和固定对象池。
 
 ## 关键参数
 
-| 项目 | v2.8.0 |
+| 项目 | v2.9.2 |
 |---|---:|
-| tempoScale | 1.00 |
-| 普通跳跃速度 / 重力 | 920 / 1500 |
-| 理论腾空时间 | 约 1.23 秒 |
-| 水平速度 / 加速度 / 阻尼 | 380 / 2600 / 0.84 |
-| 相机线 / 跟随率 / 最大追赶速度 | 0.41 / 3.15 / 560 |
-| 弹簧倍率 | 1.62 |
-| Combo 超时 | 2.8 秒 |
-| Combo 8 冲刺 | ×1.30 / 0.32 秒 / 退出 ×1.08 |
-| Combo 12 冲刺 | ×1.55 / 0.42 秒 / 退出 ×1.12 |
-| 精准落点 | 半云宽 ×0.18，奖励 +1 |
-| 对象池 | 拖尾 24、粒子 128、浮字 12 |
-| 碰撞、云间距、云概率 | 与 v2.7.0 相同 |
+| 参考帧率 / 世界比例 | 60 FPS / ×2 |
+| 重力 / 起跳速度 | 2160 / 1680 |
+| 水平速度 / 加速度 | 720 / 2160 |
+| 松手阻尼 | `0.92^(dt×60)` |
+| 玩家半径 / 云尺寸 | 36 / 140×40 |
+| 云间距 | 100～140 |
+| 弹簧倍率 | 2.0 |
+| 镜头线 / 跟随率 | 0.40 / 2.45 |
+| 四种云概率 | 75% / 5% / 10% / 10% |
+| 星星 / 金币 / 羽毛 | 25% / 35% / 8% |
+| 对象池 | 拖尾 20、粒子 128、浮字 12；收集物预热 28，本次抽样扩至 29 后稳定 |
+
+## 存档键
+
+保留：
+
+- `cloudBounceBest`
+- `cloudBounceCoins`
+- `cloudBounceRanking`
+- `cloudBounceSkin`
+- `cloudBounceSkills`
+- `cloudBounceActiveSkills`
+- `cloudBounceSound`
+- `cloudBounceMusic`
+
+兼容读取 v2.8.0 的累计统计与 UI 模式键，但 HTML 复刻页只显示旧版已有项目。
 
 ## 验证记录
 
-- Creator 3.8.8 已正式导入 `AudioManager.ts`、`ProgressionService.ts` 并生成 meta。
-- Creator 内置 TypeScript `--noEmit --skipLibCheck`：0 错误。
-- web-mobile 构建完成；720×1280 浏览器真实点击验证主页、教学、排行榜、统计、设置和大字模式。
-- 连续自动游玩 600 秒：运行时异常 0；DOM 26→26；Canvas 1→1；JS 堆约 79.3 MB→41.8 MB。
-- 连续回归覆盖四种云、金币、星星、HUD、死亡结算和 R 重开；对象池复用未见持续节点增长。
-- 抖音小游戏发布包构建后检查三个入口文件；本地开发者工具导入目录为 `D:\cesi2\蹦蹦云-Cocos工程\cese\build\bytedance-mini-game`。
-- 抖音开发者工具 V4.5.4 已打开该项目，工具编译日志无项目错误；模拟器因远程资源 `net::ERR_SSL_BAD_RECORD_MAC_ALERT` 持续停在初始化，平台画面未验证通过。
+- TypeScript 与差异检查通过；Creator 导入新增脚本并正式生成 meta。
+- web-mobile 与 bytedance-mini-game 最终构建均成功。
+- 浏览器真实交互覆盖所有主要页面、暂停/继续、自然结算、返回主页和刷新后排行保存。
+- 同一运行抽样包含四种云、金币、星星、羽毛。
+- Game 节点在最终 20 秒抽样中由 289 回落并稳定为 288；固定特效池未扩张；应用脚本异常 0。
+- 抖音包根目录存在 `game.js`、`game.json`、`project.config.json`。
+- 未上传、未发布、未提交审核。
 
-## 存档兼容
+## 尚未迁移/未验证
 
-- 保留旧键：`cloudBounceBest`、`cloudBounceCoins`、`cloudBounceRanking`、`cloudBounceUiMode`、`cloudBounceSkin`。
-- 新增：`cloudBounceLifetimeStats`、`cloudBounceSound`、`cloudBounceMusic`、`cloudBounceTutorialSeen`。
-- 旧存档缺少新字段时使用安全默认值；不会清除或重解释旧最高分、金币和排行。
-
-## 当前限制与风险
-
-- 手感为浏览器自动回归后的工程基线，仍需用户在手机上确认跳跃、镜头、弹簧和冲刺强度。
-- 音频架构已完成，但正式音频素材未提供。
-- 皮肤、技能、正式抖音排行榜、分享、广告、云存档、支付、羽毛和商业化未实现。
-- 未在真实移动设备完成最终性能与触控验收；不得把浏览器回归描述为真机验证。
-- 抖音工具本地预览仍需在网络/SSL 状态恢复后复核；当前只能确认构建、导入与编译链路。
+- 正式音频文件未提供；AudioManager 只保留明确的素材替换接口。
+- 正式抖音排行榜、广告、云存档、支付和商业化不在旧 HTML 闭环内，未新增。
+- 抖音开发者工具和真实手机最终画面、触控、安全区、性能仍需用户侧验证。
+- 全部手感和视觉项目：**等待用户试玩确认。**
 
 ## 下一步
 
-v2.8.0 完成后停止。下一版本必须等待用户明确指定，不自动开始；若继续，优先由用户试玩确认手感，再决定是否做参数微调或正式美术/音频资源接入。
+停止继续开发，不合并 master。用户试玩后只根据明确反馈在 `agent/html-parity` 微调；未经确认不开始下一版本。

@@ -17,6 +17,7 @@ import { DreamyHUD } from '../visual/DreamyHUD';
 import { VisualEffects } from '../visual/VisualEffects';
 import { VisualEnvironment } from '../visual/VisualEnvironment';
 import { StorageService } from '../platform/StorageService';
+import { LegacyGamePanels } from '../ui/LegacyGamePanels';
 const { ccclass, property } = _decorator;
 
 @ccclass('MinimalGameBootstrap')
@@ -121,9 +122,7 @@ export class MinimalGameBootstrap extends Component {
     visualEffects.configure(this.player, this.gameManager, this.world);
     this.gameManager.onLandingFeedback = (feedback) => visualEffects.playLandingFeedback(feedback);
     this.gameManager.onCollectibleFeedback = (type, position) => visualEffects.playCollectibleFeedback(type, position);
-    this.gameManager.onDashFeedback = (tier, position) => visualEffects.playDashFeedback(tier, position);
     this.gameManager.onMilestone = (score, position) => visualEffects.playMilestoneFeedback(score, position);
-    this.gameManager.onLevelComplete = (level, position) => visualEffects.playLevelCompleteFeedback(level, position);
     this.gameManager.onRunStarted = (position) => visualEffects.playStartFeedback(position);
     this.gameManager.onRestartRequested = () => this.restart();
 
@@ -134,7 +133,18 @@ export class MinimalGameBootstrap extends Component {
       pauseIcon: this.pauseIconSpriteFrame,
       coinIcon: this.coinIconSpriteFrame,
     });
+    const panels = this.hudNode.addComponent(LegacyGamePanels);
+    panels.configure(this.gameManager);
+    panels.onHomeRequested = () => this.returnHome();
     hud.onHomeRequested = () => this.returnHome();
+    hud.onSkillsRequested = () => panels.showSkills();
+    hud.onRankingRequested = () => panels.showRanking();
+    hud.onSkinsRequested = () => panels.showSkins();
+    this.gameManager.onLevelComplete = (level, position) => {
+      visualEffects.playLevelCompleteFeedback(level, position);
+      panels.showLevelComplete(level);
+    };
+    this.gameManager.onSkillToast = (message) => panels.showToast(message);
 
     this.buildEntryOverlay();
     this.buildResultPanel();
@@ -170,7 +180,7 @@ export class MinimalGameBootstrap extends Component {
 
   private beginEntry(): void {
     if (!this.gameManager || !this.player) return;
-    this.gameManager.prepareRun();
+    this.gameManager.prepareRun(true);
     this.entryTime = 0;
     this.entryActive = true;
     if (this.entryOverlay) this.entryOverlay.active = true;

@@ -27,16 +27,11 @@ export class GameData {
   }
 
   registerLanding(continuesCombo: boolean): number {
-    this.combo = continuesCombo ? this.combo + 1 : 1;
+    // HTML 版每次成功落云都直接累加 Combo；只有下落未命中云时才清零。
+    void continuesCombo;
+    this.combo += 1;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
-    // 沿用旧版的克制节奏：每 5 连击只额外增加 1 分，最高额外 3 分。
-    const scoreGain = 1 + Math.min(3, Math.floor(this.combo / 5));
-    this.score += scoreGain;
-    return scoreGain;
-  }
-
-  registerRepeatLanding(): number {
-    const scoreGain = 1 + Math.min(3, Math.floor(this.combo / 5));
+    const scoreGain = 1 + Math.floor(this.combo / 5);
     this.score += scoreGain;
     return scoreGain;
   }

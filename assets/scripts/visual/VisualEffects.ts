@@ -72,9 +72,9 @@ export class VisualEffects extends Component {
     if (!this.player || !this.gameManager || !this.world) return;
     const step = Math.min(dt, 1 / 30);
     if (this.gameManager.phase === 'playing') {
-      const highSpeed = this.player.isDashing() || Math.abs(this.player.velocity.y) > GAME.jumpVelocity * GAME.tempoScale * 1.22;
+      const highSpeed = Math.abs(this.player.velocity.y) > GAME.jumpVelocity * GAME.tempoScale * 1.22;
       this.trailTimer += step;
-      const trailInterval = highSpeed ? 0.026 : this.gameManager.data.combo >= 3 ? 0.036 : 0.048;
+      const trailInterval = 2 / GAME.legacyReferenceFps;
       if (this.trailTimer >= trailInterval) {
         this.trailTimer = 0;
         this.spawnTrailDot(highSpeed);
@@ -87,27 +87,17 @@ export class VisualEffects extends Component {
   }
 
   playLandingFeedback(feedback: LandingFeedback): void {
-    const { type, combo, position, precise, repeated, scoreGain } = feedback;
+    const { type, combo, position } = feedback;
     const spring = type === 'spring';
     const color = spring ? new Color(255, 205, 92, 255) : new Color(245, 251, 255, 235);
-    // 落地粉尘与起跳光点分层，普通跳克制，弹簧云明显增强。
-    this.emitBurst(position, color, spring ? 8 : 5, spring ? 230 : 145, 'radial');
-    this.emitBurst(position, color, spring ? 14 : 3, spring ? 360 : 205, 'up');
-    if (spring) this.showFloatText(position, `弹簧跃升  +${scoreGain}`, new Color(255, 222, 112, 255));
-    else if (precise) this.showFloatText(position, `精准落点  +${scoreGain}`, new Color(172, 244, 255, 255));
-    else if (!repeated) this.showFloatText(position, `+${scoreGain}`, new Color(255, 255, 255, 235));
-    if (combo >= 5) {
-      this.emitBurst(position, new Color(255, 224, 128, 245), combo >= 8 ? 8 : 4, 250, 'up');
+    this.emitBurst(position, color, 8, 180, 'radial');
+    if (spring) this.showFloatText(position, '🚀 弹射!', new Color(255, 107, 0, 255));
+    if (combo >= 3 && combo % 3 === 0) {
+      this.showFloatText(position, combo % 5 === 0 ? `🔥 ${combo} 连击!!` : `🔥 ${combo} 连击!`, combo % 5 === 0 ? new Color(255, 215, 0, 255) : new Color(255, 107, 107, 255));
     }
-    const comboShake = combo >= 8 ? 5 : combo >= 5 ? 3.8 : 0;
-    this.requestShake(Math.max(spring ? 7.5 : 1.25, comboShake));
-  }
-
-  playDashFeedback(tier: 8 | 12, position: Vec3): void {
-    const color = tier === 12 ? new Color(255, 157, 229, 255) : new Color(255, 224, 112, 255);
-    this.emitBurst(position, color, tier === 12 ? 26 : 20, tier === 12 ? 440 : 360, 'up');
-    this.showFloatText(position, tier === 12 ? 'COMBO 12 · 星光冲刺' : 'COMBO 8 · 云上冲刺', color);
-    this.requestShake(tier === 12 ? 8 : 6);
+    const bonus = Math.floor(combo / 5);
+    if (bonus > 0) this.showFloatText(new Vec3(position.x + 40, position.y + 15, 0), `+${bonus}`, new Color(255, 215, 0, 255));
+    this.requestShake(spring ? 10 : combo % 5 === 0 ? 5 : 0);
   }
 
   playMilestoneFeedback(score: number, position: Vec3): void {
@@ -127,13 +117,15 @@ export class VisualEffects extends Component {
 
   playCollectibleFeedback(type: CollectibleType, position: Vec3): void {
     const star = type === 'star';
+    const feather = type === 'feather';
     this.emitBurst(
       position,
-      star ? new Color(255, 225, 105, 255) : new Color(255, 196, 72, 255),
-      star ? 14 : 9,
-      star ? 260 : 190,
+      feather ? new Color(116, 185, 255, 255) : star ? new Color(255, 225, 105, 255) : new Color(255, 196, 72, 255),
+      feather ? 10 : star ? 15 : 8,
+      feather ? 220 : star ? 260 : 190,
       'radial',
     );
+    if (feather) this.showFloatText(position, '🪶 滑翔!', new Color(116, 185, 255, 255));
     if (star) this.requestShake(2);
   }
 

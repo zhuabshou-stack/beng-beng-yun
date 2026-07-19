@@ -2,7 +2,8 @@ import {
   _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
   Sprite, SpriteFrame, Tween, UITransform, Vec3, VerticalTextAlignment, tween, view,
 } from 'cc';
-import { GAME } from '../core/GameConfig';
+import { GAME, SKILLS, SkillId } from '../core/GameConfig';
+import { LegacyProgression } from '../core/LegacyProgression';
 import { DisplaySettings } from '../core/DisplaySettings';
 import { CameraRig } from '../game/CameraRig';
 import { GameManager } from '../game/GameManager';
@@ -18,6 +19,9 @@ export interface HUDFrames {
 @ccclass('DreamyHUD')
 export class DreamyHUD extends Component {
   onHomeRequested: (() => void) | null = null;
+  onSkillsRequested: (() => void) | null = null;
+  onRankingRequested: (() => void) | null = null;
+  onSkinsRequested: (() => void) | null = null;
   private gameManager: GameManager | null = null;
   private cameraRig: CameraRig | null = null;
   private scoreLabel: Label | null = null;
@@ -28,6 +32,8 @@ export class DreamyHUD extends Component {
   private progressLabel: Label | null = null;
   private progressGraphics: Graphics | null = null;
   private pausePanel: Node | null = null;
+  private skillBar: Node | null = null;
+  private readonly skillLabels = new Map<SkillId, Label>();
   private lastScore = -1;
   private lastCoins = -1;
   private lastStars = -1;
@@ -40,6 +46,7 @@ export class DreamyHUD extends Component {
     this.gameManager = gameManager;
     this.cameraRig = cameraRig;
     this.build(frames);
+    this.gameManager.onSkillStateChanged = () => this.rebuildSkillBar();
     this.applyDisplaySettings();
   }
 
@@ -98,26 +105,30 @@ export class DreamyHUD extends Component {
       if (this.progressLabel) this.progressLabel.string = `云端旅程  ${score}/${GAME.levelTarget}`;
     }
     if (this.pausePanel) this.pausePanel.active = this.gameManager.phase === 'paused';
+    this.updateSkillBar();
   }
 
   private build(frames: HUDFrames): void {
     this.node.removeAllChildren();
-    const scoreChip = this.createGlassPanel('ScoreChip', 250, 118, 0.22);
+    const scoreChip = this.createGlassPanel('ScoreChip', 210, 96, 0.08);
     this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 54, new Color(255, 255, 255, 255));
-    this.scoreLabel.node.setPosition(0, 14, 0);
+    this.scoreLabel.node.setPosition(0, 9, 0);
     this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 22, new Color(235, 242, 255, 205));
-    this.bestLabel.node.setPosition(0, -35, 0);
+    this.bestLabel.node.setPosition(0, -32, 0);
 
     const coinChip = this.createGlassPanel('CoinChip', 180, 78, 0.22);
     this.createIcon('CoinIcon', coinChip, frames.coinIcon, 'coin');
     this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 30, new Color(255, 235, 151, 255));
     this.coinLabel.node.setPosition(36, 0, 0);
 
-    const statsChip = this.createGlassPanel('RunStatsChip', 330, 58, 0.18);
-    this.statsLabel = this.createLabel('RunStatsLabel', statsChip, '高度 0m    星星 0', 21, new Color(241, 245, 255, 225));
+    const statsChip = this.createGlassPanel('RunStatsChip', 330, 54, 0.10);
+    this.statsLabel = this.createLabel('RunStatsLabel', statsChip, '高度 0m    ⭐ 0', 20, new Color(241, 245, 255, 225));
 
     this.comboLabel = this.createLabel('ComboLabel', this.node, 'COMBO 2', 34, new Color(255, 191, 126, 255));
     this.comboLabel.node.active = false;
+
+    this.skillBar = this.createNode('SkillBar', this.node);
+    this.rebuildSkillBar();
 
     const homeButton = this.createGlassButton('HomeButton', frames.homeIcon, 'home');
     homeButton.on(Button.EventType.CLICK, this.requestHome, this);
@@ -132,15 +143,20 @@ export class DreamyHUD extends Component {
     const versionLabel = this.createLabel('VersionLabel', this.node, `v${GAME.version}`, 16, new Color(255, 255, 255, 115));
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
 
-    this.pausePanel = this.createGlassPanel('PausePanel', 560, 360, 0.82);
-    this.createLabel('PauseTitle', this.pausePanel, '旅程暂停', 52, Color.WHITE).node.setPosition(0, 92, 0);
-    this.createLabel('PauseHint', this.pausePanel, '稍作休息，再向云端出发', 24, new Color(220, 228, 255, 210)).node.setPosition(0, 34, 0);
+    this.pausePanel = this.createGlassPanel('PausePanel', 600, 720, 0.92);
+    this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 48, Color.WHITE).node.setPosition(0, 285, 0);
     const resume = this.createRoundedButton('ResumeButton', this.pausePanel, '继续游戏');
-    resume.setPosition(0, -55, 0);
+    resume.setPosition(0, 185, 0);
     resume.on(Button.EventType.CLICK, this.resume, this);
+    const skills = this.createRoundedButton('PauseSkillButton', this.pausePanel, '⚡ 技能商店');
+    skills.setPosition(0, 70, 0); skills.on(Button.EventType.CLICK, () => this.onSkillsRequested?.(), this);
+    const ranking = this.createRoundedButton('PauseRankButton', this.pausePanel, '🏆 排行榜');
+    ranking.setPosition(0, -45, 0); ranking.on(Button.EventType.CLICK, () => this.onRankingRequested?.(), this);
+    const skins = this.createRoundedButton('PauseSkinButton', this.pausePanel, '🎨 皮肤');
+    skins.setPosition(0, -160, 0); skins.on(Button.EventType.CLICK, () => this.onSkinsRequested?.(), this);
     const pauseHome = this.createRoundedButton('PauseHomeButton', this.pausePanel, '返回主页');
     pauseHome.setScale(0.78, 0.78, 1);
-    pauseHome.setPosition(0, -145, 0);
+    pauseHome.setPosition(0, -285, 0);
     pauseHome.on(Button.EventType.CLICK, this.requestHome, this);
     this.pausePanel.active = false;
 
@@ -163,6 +179,7 @@ export class DreamyHUD extends Component {
     this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 100, top, 0);
     this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 102, 0);
     this.node.getChildByName('ComboLabel')?.setPosition(0, top - 158, 0);
+    this.skillBar?.setPosition(halfWidth - safe.right / scale - 78, top - 105, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);
     this.pausePanel?.setPosition(0, 0, 0);
@@ -195,11 +212,10 @@ export class DreamyHUD extends Component {
       return;
     }
     this.lastCombo = combo;
-    const bonus = Math.min(3, Math.floor(combo / 5));
-    label.string = combo >= 8 ? `高连击  COMBO ${combo}`
-      : bonus > 0 ? `COMBO ${combo}   落云奖励 +${bonus}` : `COMBO ${combo}`;
-    label.fontSize = combo >= 8 ? 42 : combo >= 5 ? 38 : 34;
-    label.color = combo >= 8 ? new Color(255, 225, 112, 255)
+    const bonus = Math.floor(combo / 5);
+    label.string = bonus > 0 ? `🔥 ${combo} 连击   +${bonus}` : `🔥 ${combo} 连击`;
+    label.fontSize = combo >= 10 ? 42 : combo >= 5 ? 38 : 34;
+    label.color = combo >= 10 ? new Color(255, 225, 112, 255)
       : combo >= 5 ? new Color(255, 170, 128, 255) : new Color(255, 205, 156, 255);
     Tween.stopAllByTarget(label.node);
     label.node.setScale(0.86, 0.86, 1);
@@ -229,6 +245,39 @@ export class DreamyHUD extends Component {
   private resume(): void {
     this.gameManager?.resume();
     if (this.pausePanel) this.pausePanel.active = false;
+  }
+
+  private rebuildSkillBar(): void {
+    if (!this.skillBar || !this.gameManager) return;
+    this.skillBar.removeAllChildren();
+    this.skillLabels.clear();
+    const active = LegacyProgression.loadActiveSkills();
+    const data = LegacyProgression.loadSkills();
+    active.forEach((id, index) => {
+      if (!data[id].owned) return;
+      const definition = SKILLS.find((skill) => skill.id === id);
+      if (!definition) return;
+      const button = this.createGlassPanel(`Skill_${id}`, 76, 76, 0.38);
+      button.parent = this.skillBar;
+      button.setPosition(0, -index * 90, 0);
+      button.addComponent(Button);
+      this.createLabel(`SkillIcon_${id}`, button, definition.icon, 31, Color.WHITE).node.setPosition(0, 10, 0);
+      const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 14, new Color(255, 215, 0, 255));
+      label.node.setPosition(0, -24, 0);
+      this.skillLabels.set(id, label);
+      button.on(Button.EventType.CLICK, () => this.gameManager?.useSkill(id), this);
+      this.addPressFeedback(button);
+    });
+  }
+
+  private updateSkillBar(): void {
+    if (!this.gameManager) return;
+    const data = LegacyProgression.loadSkills();
+    for (const [id, label] of this.skillLabels) {
+      const cooldown = this.gameManager.getSkillCooldown(id);
+      label.string = cooldown > 0 ? `${Math.ceil(cooldown)}s` : `${data[id].uses}`;
+      label.color = cooldown > 0 || data[id].uses <= 0 ? new Color(255, 120, 120, 220) : new Color(255, 215, 0, 255);
+    }
   }
 
   private createGlassPanel(name: string, width: number, height: number, alpha: number): Node {

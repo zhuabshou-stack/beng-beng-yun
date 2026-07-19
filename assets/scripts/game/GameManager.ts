@@ -1,8 +1,9 @@
 import {
   _decorator, Component, Node, EventKeyboard, EventTouch, input, Input, KeyCode,
-  UITransform, Vec3, isValid, view, warn,
+  UITransform, Vec3, view, warn,
 } from 'cc';
-import { GAME } from '../core/GameConfig';
+import { GAME, SKILLS, SkillId } from '../core/GameConfig';
+import { LegacyProgression } from '../core/LegacyProgression';
 import { GameData } from '../core/GameData';
 import { PlayerController } from './PlayerController';
 import { CloudManager } from './CloudManager';
@@ -22,8 +23,6 @@ export interface LandingFeedback {
   type: CloudType;
   combo: number;
   scoreGain: number;
-  precise: boolean;
-  repeated: boolean;
   position: Vec3;
 }
 
@@ -48,15 +47,15 @@ export class GameManager extends Component {
   phase: GamePhase = 'idle';
   onLandingFeedback: ((feedback: LandingFeedback) => void) | null = null;
   onCollectibleFeedback: ((type: CollectibleType, position: Vec3) => void) | null = null;
-  onDashFeedback: ((tier: 8 | 12, position: Vec3) => void) | null = null;
   onMilestone: ((score: number, position: Vec3) => void) | null = null;
   onLevelComplete: ((level: number, position: Vec3) => void) | null = null;
   onRunStarted: ((position: Vec3) => void) | null = null;
+  onSkillToast: ((message: string) => void) | null = null;
+  onSkillStateChanged: (() => void) | null = null;
   onRestartRequested: (() => void) | null = null;
   private viewportWidth = 720;
   private viewportHeight = 1280;
   private previousPlayerY = 0;
-  private comboTimeRemaining = 0;
   private lastLandedCloud: CloudPlatform | null = null;
   private touchDirection = 0;
   private escapeHeld = false;
@@ -66,7 +65,17 @@ export class GameManager extends Component {
   private runPlayTime = 0;
   private recordedPlayTime = 0;
   private nextMilestoneIndex = 0;
-  private nextLevelTarget = GAME.levelTarget;
+  private nextLevelTarget: number = GAME.levelTarget;
+  currentLevel = 1;
+  private gameTime = 0;
+  private shieldActive = false;
+  private ghostRemaining = 0;
+  private slowmoRemaining = 0;
+  private magnetRemaining = 0;
+  private featherRemaining = 0;
+  private doubleJumpReady = false;
+  private readonly cooldownUntil = new Map<SkillId, number>();
+  private readonly history: Array<{ age: number; position: Vec3; velocity: Vec3; score: number }> = [];
   private readonly handleAppHide = (): void => this.pause();
   private readonly handleCollected = (type: CollectibleType, position: Vec3): void => this.handleCollectible(type, position);
 
@@ -116,18 +125,29 @@ export class GameManager extends Component {
     this.beginPreparedRun();
   }
 
-  prepareRun(): void {
+  prepareRun(resetLevel = false): void {
     if (!this.player || !this.cloudManager) return;
+    if (resetLevel) this.currentLevel = 1;
     this.data.resetRun();
-    this.comboTimeRemaining = 0;
     this.lastLandedCloud = null;
     this.phase = 'idle';
     this.runPlayTime = 0;
     this.recordedPlayTime = 0;
     this.nextMilestoneIndex = 0;
-    this.nextLevelTarget = GAME.levelTarget;
+    this.nextLevelTarget = GAME.levelTarget * this.currentLevel;
+    this.gameTime = 0;
+    this.shieldActive = false;
+    this.ghostRemaining = 0;
+    this.slowmoRemaining = 0;
+    this.magnetRemaining = 0;
+    this.featherRemaining = 0;
+    this.doubleJumpReady = false;
+    this.cooldownUntil.clear();
+    this.history.length = 0;
     this.resetInputState();
     this.player.reset(new Vec3(0, -260, 0));
+    this.player.setSkinIndex(this.data.selectedSkin);
+    this.player.setGhostVisual(false);
     this.collectibleManager?.reset();
     this.cloudManager.reset(this.viewportWidth, -330);
     this.previousPlayerY = this.player.node.position.y;
@@ -148,7 +168,6 @@ export class GameManager extends Component {
   returnToHome(): void {
     this.flushRunProgress();
     this.phase = 'idle';
-    this.comboTimeRemaining = 0;
     this.lastLandedCloud = null;
     this.data.resetCombo();
     this.resetInputState();
@@ -171,12 +190,36 @@ export class GameManager extends Component {
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
     const clampedDt = Math.min(dt, 1 / 30);
+    this.gameTime += clampedDt;
     this.runPlayTime += clampedDt;
     this.previousPlayerY = this.player.node.position.y;
-    this.player.simulate(clampedDt, this.viewportWidth);
-    this.resolveLanding();
-    this.updateComboTimer(clampedDt);
+    this.updateSkills(clampedDt);
+    this.saveHistory(clampedDt);
+    this.player.simulate(clampedDt, this.viewportWidth, this.slowmoRemaining > 0 ? 0.5 : 1);
+    if (this.featherRemaining > 0 && this.player.velocity.y < 0) {
+      this.player.velocity.y *= Math.pow(GAME.featherFallDampingPerFrame, clampedDt * GAME.legacyReferenceFps);
+      this.featherRemaining = Math.max(0, this.featherRemaining - clampedDt);
+    }
+    if (this.doubleJumpReady && this.player.velocity.y < 0) {
+      this.doubleJumpReady = false;
+      this.player.jump(0.7);
+      ProgressionService.recordJump();
+      this.onSkillToast?.('🦘 二段跳!');
+    }
+    const landed = this.ghostRemaining <= 0 && this.resolveLanding();
+    if (!landed && this.player.velocity.y < -GAME.comboResetFallSpeed && this.data.combo > 0) {
+      this.lastLandedCloud = null;
+      this.data.resetCombo();
+    }
     this.collectibleManager?.collectTouching(this.player, this.handleCollected);
+    if (this.magnetRemaining > 0) {
+      this.collectibleManager?.attractTowards(
+        this.player.node.position,
+        GAME.magnetRadius,
+        GAME.magnetSpeed,
+        clampedDt,
+      );
+    }
 
     const cameraY = this.cameraRig?.node.position.y ?? 0;
     this.cloudManager.ensureAhead(cameraY + this.viewportHeight * 0.85, this.viewportWidth);
@@ -184,7 +227,14 @@ export class GameManager extends Component {
     this.collectibleManager?.cleanup(cameraY - this.viewportHeight * 0.75);
 
     this.data.heightMeters = Math.max(this.data.heightMeters, Math.floor((this.player.node.position.y + 260) * 0.18));
-    if (this.player.node.position.y < cameraY - this.viewportHeight * 0.65 - GAME.deathMargin) this.finishRun();
+    if (this.player.node.position.y < cameraY - this.viewportHeight * GAME.deathLineRatio - GAME.deathMargin) {
+      if (this.shieldActive) {
+        this.shieldActive = false;
+        this.player.node.setPosition(this.player.node.position.x, cameraY - this.viewportHeight * 0.1, 0);
+        this.player.velocity.set(0, GAME.shieldBounceVelocity, 0);
+        this.onSkillToast?.('🛡️ 护盾触发!');
+      } else this.finishRun();
+    }
   }
 
   addCoin(amount = 1): void {
@@ -201,8 +251,35 @@ export class GameManager extends Component {
     this.checkProgressFeedback();
   }
 
-  private resolveLanding(): void {
-    if (!this.player || !this.cloudManager || this.player.velocity.y > 0) return;
+  useSkill(id: SkillId): boolean {
+    if (this.phase !== 'playing') return false;
+    const definition = SKILLS.find((skill) => skill.id === id);
+    const skills = LegacyProgression.loadSkills();
+    const entry = skills[id];
+    if (!definition || !entry.owned || entry.uses <= 0) return false;
+    if ((this.cooldownUntil.get(id) ?? 0) > this.gameTime) return false;
+    entry.uses -= 1;
+    LegacyProgression.saveSkills(skills);
+    this.cooldownUntil.set(id, this.gameTime + definition.cooldownSeconds);
+    if (id === 'shield') this.shieldActive = true;
+    else if (id === 'magnet') this.magnetRemaining = definition.effectSeconds;
+    else if (id === 'slowmo') this.slowmoRemaining = definition.effectSeconds;
+    else if (id === 'ghost') {
+      this.ghostRemaining = definition.effectSeconds;
+      this.player?.setGhostVisual(true);
+    } else if (id === 'doubleJump') this.doubleJumpReady = true;
+    else this.rewind();
+    this.onSkillToast?.(`${definition.icon} ${definition.name} 激活!`);
+    this.onSkillStateChanged?.();
+    return true;
+  }
+
+  getSkillCooldown(id: SkillId): number {
+    return Math.max(0, (this.cooldownUntil.get(id) ?? 0) - this.gameTime);
+  }
+
+  private resolveLanding(): boolean {
+    if (!this.player || !this.cloudManager || this.player.velocity.y > 0) return false;
     const currentY = this.player.node.position.y;
     const previousBottom = this.previousPlayerY - this.player.radius;
     const currentBottom = currentY - this.player.radius;
@@ -217,69 +294,35 @@ export class GameManager extends Component {
       if (!crossesTop || !insideX) continue;
 
       this.player.node.setPosition(px, top + this.player.radius, 0);
-      const repeatsSameCloud = this.lastLandedCloud === cloud && this.comboTimeRemaining > 0;
-      let scoreGain = 0;
-      if (repeatsSameCloud) {
-        // 同一朵云不增加连击，也不刷新倒计时；基础落地分仍保留。
-        scoreGain = this.data.registerRepeatLanding();
-      } else {
-        const continuesCombo = this.lastLandedCloud !== null && this.comboTimeRemaining > 0;
-        scoreGain = this.data.registerLanding(continuesCombo);
-        this.lastLandedCloud = cloud;
-        this.comboTimeRemaining = GAME.comboTimeout;
-      }
-      const distanceFromCenter = Math.abs(px - cloud.node.position.x);
-      const precise = !repeatsSameCloud && distanceFromCenter <= halfW * GAME.precisionLandingRatio;
-      if (precise) {
-        scoreGain += GAME.precisionLandingReward;
-        this.data.score += GAME.precisionLandingReward;
-      }
+      const scoreGain = this.data.registerLanding(true);
+      this.lastLandedCloud = cloud;
       cloud.playLandingBounce(cloud.type === 'spring');
       this.player.jump(cloud.type === 'spring' ? GAME.springJumpMultiplier : 1);
       ProgressionService.recordLanding();
       ProgressionService.recordJump();
       AudioManager.playSound(cloud.type === 'spring' ? 'spring' : 'jump');
-      if (cloud.type === 'spring') this.cameraRig?.notifySpringBounce();
-      if (cloud.type === 'fragile') {
-        this.scheduleOnce(() => {
-          if (isValid(cloud.node, true)) cloud.breakApart();
-        }, 0.18);
-      }
-      if (!repeatsSameCloud && (this.data.combo === 8 || this.data.combo === 12)) {
-        const tier = this.data.combo as 8 | 12;
-        this.player.startComboDash(tier);
-        this.cameraRig?.notifyDash();
-        this.onDashFeedback?.(tier, this.player.node.position.clone());
-        AudioManager.playSound('dash');
-      } else if (this.data.combo >= 5 && !repeatsSameCloud) {
+      if (cloud.type === 'fragile') cloud.breakApart();
+      if (this.data.combo >= 5) {
         AudioManager.playSound('combo');
       }
-      this.onLandingFeedback?.({ type: cloud.type, combo: this.data.combo, scoreGain, precise, repeated: repeatsSameCloud, position: new Vec3(px, top, 0) });
+      this.onLandingFeedback?.({ type: cloud.type, combo: this.data.combo, scoreGain, position: new Vec3(px, top, 0) });
       this.checkProgressFeedback();
       DouyinBridge.vibrateShort();
-      break;
+      return true;
     }
-  }
-
-  private updateComboTimer(dt: number): void {
-    if (this.data.combo <= 0) return;
-    this.comboTimeRemaining -= dt;
-    if (this.comboTimeRemaining > 0) return;
-    this.comboTimeRemaining = 0;
-    this.lastLandedCloud = null;
-    this.data.resetCombo();
+    return false;
   }
 
   private handleCollectible(type: CollectibleType, position: Vec3): void {
     if (type === 'coin') this.addCoin();
-    else this.addStar();
+    else if (type === 'star') this.addStar();
+    else this.featherRemaining = GAME.featherGlideDuration;
     this.onCollectibleFeedback?.(type, position);
-    AudioManager.playSound(type);
+    AudioManager.playSound(type === 'feather' ? 'star' : type);
   }
 
   private finishRun(): void {
     this.phase = 'gameover';
-    this.comboTimeRemaining = 0;
     this.lastLandedCloud = null;
     this.data.resetCombo();
     const stats = this.data.snapshot();
@@ -303,11 +346,43 @@ export class GameManager extends Component {
       this.onMilestone?.(milestone, this.player.node.position.clone());
       AudioManager.playSound('milestone');
     }
-    while (this.data.score >= this.nextLevelTarget) {
-      const level = Math.floor(this.nextLevelTarget / GAME.levelTarget);
-      this.onLevelComplete?.(level, this.player.node.position.clone());
-      this.nextLevelTarget += GAME.levelTarget;
-    }
+    if (this.phase === 'playing' && this.data.score >= this.nextLevelTarget) this.completeLevel();
+  }
+
+  continueNextLevel(): void {
+    if (this.phase !== 'complete') return;
+    this.currentLevel += 1;
+    this.startRun();
+  }
+
+  private completeLevel(): void {
+    this.phase = 'complete';
+    this.data.totalCoins += GAME.levelRewardCoins;
+    StorageService.setNumber('cloudBounceCoins', this.data.totalCoins);
+    this.onLevelComplete?.(this.currentLevel, this.player?.node.position.clone() ?? Vec3.ZERO);
+    this.resetInputState();
+  }
+
+  private updateSkills(dt: number): void {
+    this.magnetRemaining = Math.max(0, this.magnetRemaining - dt);
+    this.slowmoRemaining = Math.max(0, this.slowmoRemaining - dt);
+    const wasGhost = this.ghostRemaining > 0;
+    this.ghostRemaining = Math.max(0, this.ghostRemaining - dt);
+    if (wasGhost && this.ghostRemaining === 0) this.player?.setGhostVisual(false);
+  }
+
+  private saveHistory(dt: number): void {
+    for (const entry of this.history) entry.age += dt;
+    this.history.push({ age: 0, position: this.player?.node.position.clone() ?? Vec3.ZERO, velocity: this.player?.velocity.clone() ?? Vec3.ZERO, score: this.data.score });
+    while (this.history.length > 0 && this.history[0].age > 3.1) this.history.shift();
+  }
+
+  private rewind(): void {
+    if (!this.player || this.history.length === 0) return;
+    const entry = this.history.find((value) => value.age >= 2.9) ?? this.history[0];
+    this.player.node.setPosition(entry.position);
+    this.player.velocity.set(entry.velocity);
+    this.data.score = entry.score;
   }
 
   private flushRunProgress(): void {
@@ -369,6 +444,12 @@ export class GameManager extends Component {
       this.restartHeld = true;
       if (this.phase === 'gameover') this.onRestartRequested?.();
     }
+    const skillKeys: Partial<Record<KeyCode, SkillId>> = {
+      [KeyCode.DIGIT_1]: 'shield', [KeyCode.DIGIT_2]: 'magnet', [KeyCode.DIGIT_3]: 'slowmo',
+      [KeyCode.DIGIT_4]: 'ghost', [KeyCode.DIGIT_5]: 'doubleJump', [KeyCode.DIGIT_6]: 'timeWarp',
+    };
+    const skillId = skillKeys[code];
+    if (skillId) this.useSkill(skillId);
   }
 
   private onKeyUp(event: EventKeyboard): void {

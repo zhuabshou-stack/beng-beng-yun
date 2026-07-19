@@ -1,7 +1,7 @@
 import { _decorator, Color, Component, Graphics, Sprite, SpriteFrame, UITransform, Vec3 } from 'cc';
 const { ccclass } = _decorator;
 
-export type CollectibleType = 'coin' | 'star';
+export type CollectibleType = 'coin' | 'star' | 'feather';
 
 @ccclass('Collectible')
 export class Collectible extends Component {
@@ -19,7 +19,7 @@ export class Collectible extends Component {
     starSpriteFrame: SpriteFrame | null,
   ): void {
     this.type = type;
-    this.radius = type === 'star' ? 26 : 22;
+    this.radius = type === 'star' ? 20 : type === 'feather' ? 20 : 12;
     this.collected = false;
     this.elapsed = Math.random() * Math.PI * 2;
     this.origin.set(position);
@@ -37,7 +37,7 @@ export class Collectible extends Component {
     this.node.setPosition(this.animatedPosition);
     const pulse = 1 + Math.sin(this.elapsed * 4.2) * (this.type === 'star' ? 0.08 : 0.05);
     this.node.setScale(pulse, pulse, 1);
-    this.node.setRotationFromEuler(0, 0, this.type === 'star' ? this.elapsed * 34 : Math.sin(this.elapsed * 2) * 7);
+    this.node.setRotationFromEuler(0, 0, this.type === 'star' ? this.elapsed * 34 : Math.sin(this.elapsed * 2) * (this.type === 'feather' ? 17 : 7));
   }
 
   collect(): void {
@@ -63,7 +63,8 @@ export class Collectible extends Component {
     graphics.enabled = true;
     graphics.clear();
     if (this.type === 'coin') this.drawCoin(graphics);
-    else this.drawStar(graphics);
+    else if (this.type === 'star') this.drawStar(graphics);
+    else this.drawFeather(graphics);
   }
 
   private drawCoin(graphics: Graphics): void {
@@ -103,5 +104,22 @@ export class Collectible extends Component {
     graphics.fillColor = new Color(255, 255, 226, 210);
     graphics.circle(-6, 8, 4);
     graphics.fill();
+  }
+
+  private drawFeather(graphics: Graphics): void {
+    graphics.fillColor = new Color(116, 185, 255, 52);
+    graphics.ellipse(0, 0, 17, 35);
+    graphics.fill();
+    graphics.fillColor = new Color(116, 185, 255, 255);
+    graphics.ellipse(-2, 2, 8, 24);
+    graphics.fill();
+    graphics.strokeColor = new Color(238, 248, 255, 230);
+    graphics.lineWidth = 2;
+    graphics.moveTo(2, 27);
+    graphics.lineTo(-4, -28);
+    graphics.moveTo(-2, 13); graphics.lineTo(-13, 5);
+    graphics.moveTo(-3, 2); graphics.lineTo(9, -8);
+    graphics.moveTo(-4, -10); graphics.lineTo(-13, -17);
+    graphics.stroke();
   }
 }
