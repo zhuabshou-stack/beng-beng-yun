@@ -12,9 +12,9 @@ import {
   VerticalTextAlignment,
   math,
 } from 'cc';
-import { CloudType, GAME } from '../core/GameConfig';
+import { GAME } from '../core/GameConfig';
 import { CollectibleType } from '../game/Collectible';
-import { GameManager } from '../game/GameManager';
+import { GameManager, LandingFeedback } from '../game/GameManager';
 import { PlayerController } from '../game/PlayerController';
 const { ccclass } = _decorator;
 
@@ -64,15 +64,15 @@ export class VisualEffects extends Component {
     this.gameManager = gameManager;
     this.world = world;
     if (this.trail.length === 0) this.buildTrailPool();
-    if (this.particles.length === 0) this.buildParticlePool(96);
-    if (this.floatTexts.length === 0) this.buildFloatTextPool(6);
+    if (this.particles.length === 0) this.buildParticlePool(GAME.effectParticlePoolSize);
+    if (this.floatTexts.length === 0) this.buildFloatTextPool(GAME.effectFloatTextPoolSize);
   }
 
   update(dt: number): void {
     if (!this.player || !this.gameManager || !this.world) return;
     const step = Math.min(dt, 1 / 30);
     if (this.gameManager.phase === 'playing') {
-      const highSpeed = Math.abs(this.player.velocity.y) > GAME.jumpVelocity * GAME.tempoScale * 1.22;
+      const highSpeed = this.player.isDashing() || Math.abs(this.player.velocity.y) > GAME.jumpVelocity * GAME.tempoScale * 1.22;
       this.trailTimer += step;
       const trailInterval = highSpeed ? 0.026 : this.gameManager.data.combo >= 3 ? 0.036 : 0.048;
       if (this.trailTimer >= trailInterval) {
@@ -86,18 +86,38 @@ export class VisualEffects extends Component {
     this.updateShake(step);
   }
 
-  playLandingFeedback(type: CloudType, combo: number, position: Vec3): void {
+  playLandingFeedback(feedback: LandingFeedback): void {
+    const { type, combo, position, precise, repeated, scoreGain } = feedback;
     const spring = type === 'spring';
     const color = spring ? new Color(255, 205, 92, 255) : new Color(245, 251, 255, 235);
     // 落地粉尘与起跳光点分层，普通跳克制，弹簧云明显增强。
     this.emitBurst(position, color, spring ? 8 : 5, spring ? 230 : 145, 'radial');
     this.emitBurst(position, color, spring ? 14 : 3, spring ? 360 : 205, 'up');
-    if (spring) this.showFloatText(position, '弹射', new Color(255, 222, 112, 255));
+    if (spring) this.showFloatText(position, `弹簧跃升  +${scoreGain}`, new Color(255, 222, 112, 255));
+    else if (precise) this.showFloatText(position, `精准落点  +${scoreGain}`, new Color(172, 244, 255, 255));
+    else if (!repeated) this.showFloatText(position, `+${scoreGain}`, new Color(255, 255, 255, 235));
     if (combo >= 5) {
       this.emitBurst(position, new Color(255, 224, 128, 245), combo >= 8 ? 8 : 4, 250, 'up');
     }
     const comboShake = combo >= 8 ? 5 : combo >= 5 ? 3.8 : 0;
     this.requestShake(Math.max(spring ? 7.5 : 1.25, comboShake));
+  }
+
+  playDashFeedback(tier: 8 | 12, position: Vec3): void {
+    const color = tier === 12 ? new Color(255, 157, 229, 255) : new Color(255, 224, 112, 255);
+    this.emitBurst(position, color, tier === 12 ? 26 : 20, tier === 12 ? 440 : 360, 'up');
+    this.showFloatText(position, tier === 12 ? 'COMBO 12 · 星光冲刺' : 'COMBO 8 · 云上冲刺', color);
+    this.requestShake(tier === 12 ? 8 : 6);
+  }
+
+  playMilestoneFeedback(score: number, position: Vec3): void {
+    this.emitBurst(position, new Color(255, 243, 170, 255), 20, 300, 'radial');
+    this.showFloatText(position, `里程碑 ${score} 分`, new Color(255, 243, 170, 255));
+  }
+
+  playLevelCompleteFeedback(level: number, position: Vec3): void {
+    this.emitBurst(position, new Color(179, 229, 255, 255), 28, 350, 'radial');
+    this.showFloatText(position, `第 ${level} 段旅程完成`, new Color(201, 235, 255, 255));
   }
 
   playStartFeedback(position: Vec3): void {
@@ -118,7 +138,7 @@ export class VisualEffects extends Component {
   }
 
   private buildTrailPool(): void {
-    for (let i = 0; i < 18; i += 1) {
+    for (let i = 0; i < GAME.effectTrailPoolSize; i += 1) {
       const node = new Node(`Trail_${i}`);
       node.parent = this.node;
       node.layer = this.node.layer;

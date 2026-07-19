@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Vec3 } from 'cc';
+import { _decorator, Component, Node, Tween, Vec3, tween } from 'cc';
 import { CloudType, GAME } from '../core/GameConfig';
 const { ccclass, property } = _decorator;
 
@@ -13,8 +13,10 @@ export class CloudPlatform extends Component {
   broken = false;
   private phase = Math.random() * Math.PI * 2;
   private originX = 0;
+  private readonly restingScale = new Vec3(1, 1, 1);
 
   configure(type: CloudType, position: Vec3, widthScale = 1, visualVariant = 0): void {
+    Tween.stopAllByTarget(this.node);
     this.type = type;
     this.width = GAME.cloudWidth * widthScale * GAME.collisionScale;
     this.height = GAME.cloudHeight * GAME.collisionScale;
@@ -27,7 +29,19 @@ export class CloudPlatform extends Component {
     const visualScaleX = type === 'normal' ? 0.90 : 0.94;
     const visualScaleY = type === 'normal' ? 0.88 : 0.92;
     this.node.setScale(visualScaleX * GAME.cloudVisualScale, visualScaleY * GAME.cloudVisualScale, 1);
+    this.node.getScale(this.restingScale);
     this.originX = position.x;
+  }
+
+  playLandingBounce(spring: boolean): void {
+    Tween.stopAllByTarget(this.node);
+    const compressed = new Vec3(this.restingScale.x * 1.06, this.restingScale.y * (spring ? 0.68 : 0.78), 1);
+    const overshoot = new Vec3(this.restingScale.x * 0.97, this.restingScale.y * (spring ? 1.16 : 1.08), 1);
+    tween(this.node)
+      .to(spring ? 0.07 : 0.055, { scale: compressed }, { easing: 'quadOut' })
+      .to(spring ? 0.12 : 0.09, { scale: overshoot }, { easing: 'backOut' })
+      .to(0.1, { scale: this.restingScale.clone() }, { easing: 'quadInOut' })
+      .start();
   }
 
   update(dt: number): void {

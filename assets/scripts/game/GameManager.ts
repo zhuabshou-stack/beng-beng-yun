@@ -13,9 +13,19 @@ import { CollectibleManager } from './CollectibleManager';
 import { CloudType } from '../core/GameConfig';
 import { StorageService } from '../platform/StorageService';
 import { DouyinBridge } from '../platform/DouyinBridge';
+import { AudioManager } from '../core/AudioManager';
+import { ProgressionService } from '../core/ProgressionService';
 const { ccclass, property } = _decorator;
 
 export type GamePhase = 'idle' | 'playing' | 'paused' | 'gameover' | 'complete';
+export interface LandingFeedback {
+  type: CloudType;
+  combo: number;
+  scoreGain: number;
+  precise: boolean;
+  repeated: boolean;
+  position: Vec3;
+}
 
 @ccclass('GameManager')
 export class GameManager extends Component {
@@ -36,8 +46,11 @@ export class GameManager extends Component {
 
   readonly data = new GameData();
   phase: GamePhase = 'idle';
-  onLandingFeedback: ((type: CloudType, combo: number, position: Vec3) => void) | null = null;
+  onLandingFeedback: ((feedback: LandingFeedback) => void) | null = null;
   onCollectibleFeedback: ((type: CollectibleType, position: Vec3) => void) | null = null;
+  onDashFeedback: ((tier: 8 | 12, position: Vec3) => void) | null = null;
+  onMilestone: ((score: number, position: Vec3) => void) | null = null;
+  onLevelComplete: ((level: number, position: Vec3) => void) | null = null;
   onRunStarted: ((position: Vec3) => void) | null = null;
   onRestartRequested: (() => void) | null = null;
   private viewportWidth = 720;
@@ -50,6 +63,10 @@ export class GameManager extends Component {
   private restartHeld = false;
   private readonly pressedMovementKeys = new Set<KeyCode>();
   private readonly touchPosition = new Vec3();
+  private runPlayTime = 0;
+  private recordedPlayTime = 0;
+  private nextMilestoneIndex = 0;
+  private nextLevelTarget = GAME.levelTarget;
   private readonly handleAppHide = (): void => this.pause();
   private readonly handleCollected = (type: CollectibleType, position: Vec3): void => this.handleCollectible(type, position);
 
@@ -84,6 +101,7 @@ export class GameManager extends Component {
   }
 
   onDestroy(): void {
+    this.flushRunProgress();
     input.off(Input.EventType.TOUCH_START, this.onTouchStart, this);
     input.off(Input.EventType.TOUCH_MOVE, this.onTouchMove, this);
     input.off(Input.EventType.TOUCH_END, this.onTouchEnd, this);
@@ -104,6 +122,10 @@ export class GameManager extends Component {
     this.comboTimeRemaining = 0;
     this.lastLandedCloud = null;
     this.phase = 'idle';
+    this.runPlayTime = 0;
+    this.recordedPlayTime = 0;
+    this.nextMilestoneIndex = 0;
+    this.nextLevelTarget = GAME.levelTarget;
     this.resetInputState();
     this.player.reset(new Vec3(0, -260, 0));
     this.collectibleManager?.reset();
@@ -117,10 +139,14 @@ export class GameManager extends Component {
     this.phase = 'playing';
     this.applyCombinedInput();
     this.player.jump();
+    ProgressionService.recordGameStarted();
+    ProgressionService.recordJump();
+    AudioManager.playSound('jump');
     this.onRunStarted?.(this.player.node.position.clone());
   }
 
   returnToHome(): void {
+    this.flushRunProgress();
     this.phase = 'idle';
     this.comboTimeRemaining = 0;
     this.lastLandedCloud = null;
@@ -145,6 +171,7 @@ export class GameManager extends Component {
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
     const clampedDt = Math.min(dt, 1 / 30);
+    this.runPlayTime += clampedDt;
     this.previousPlayerY = this.player.node.position.y;
     this.player.simulate(clampedDt, this.viewportWidth);
     this.resolveLanding();
@@ -164,11 +191,14 @@ export class GameManager extends Component {
     this.data.runCoins += amount;
     this.data.totalCoins += amount;
     StorageService.setNumber('cloudBounceCoins', this.data.totalCoins);
+    ProgressionService.recordCoin(amount);
   }
 
   addStar(amount = 1): void {
     this.data.stars += amount;
     this.data.score += 10 * amount;
+    ProgressionService.recordStar(amount);
+    this.checkProgressFeedback();
   }
 
   private resolveLanding(): void {
@@ -188,23 +218,44 @@ export class GameManager extends Component {
 
       this.player.node.setPosition(px, top + this.player.radius, 0);
       const repeatsSameCloud = this.lastLandedCloud === cloud && this.comboTimeRemaining > 0;
+      let scoreGain = 0;
       if (repeatsSameCloud) {
         // 同一朵云不增加连击，也不刷新倒计时；基础落地分仍保留。
-        this.data.registerRepeatLanding();
+        scoreGain = this.data.registerRepeatLanding();
       } else {
         const continuesCombo = this.lastLandedCloud !== null && this.comboTimeRemaining > 0;
-        this.data.registerLanding(continuesCombo);
+        scoreGain = this.data.registerLanding(continuesCombo);
         this.lastLandedCloud = cloud;
         this.comboTimeRemaining = GAME.comboTimeout;
       }
+      const distanceFromCenter = Math.abs(px - cloud.node.position.x);
+      const precise = !repeatsSameCloud && distanceFromCenter <= halfW * GAME.precisionLandingRatio;
+      if (precise) {
+        scoreGain += GAME.precisionLandingReward;
+        this.data.score += GAME.precisionLandingReward;
+      }
+      cloud.playLandingBounce(cloud.type === 'spring');
       this.player.jump(cloud.type === 'spring' ? GAME.springJumpMultiplier : 1);
+      ProgressionService.recordLanding();
+      ProgressionService.recordJump();
+      AudioManager.playSound(cloud.type === 'spring' ? 'spring' : 'jump');
       if (cloud.type === 'spring') this.cameraRig?.notifySpringBounce();
       if (cloud.type === 'fragile') {
         this.scheduleOnce(() => {
           if (isValid(cloud.node, true)) cloud.breakApart();
         }, 0.18);
       }
-      this.onLandingFeedback?.(cloud.type, this.data.combo, new Vec3(px, top, 0));
+      if (!repeatsSameCloud && (this.data.combo === 8 || this.data.combo === 12)) {
+        const tier = this.data.combo as 8 | 12;
+        this.player.startComboDash(tier);
+        this.cameraRig?.notifyDash();
+        this.onDashFeedback?.(tier, this.player.node.position.clone());
+        AudioManager.playSound('dash');
+      } else if (this.data.combo >= 5 && !repeatsSameCloud) {
+        AudioManager.playSound('combo');
+      }
+      this.onLandingFeedback?.({ type: cloud.type, combo: this.data.combo, scoreGain, precise, repeated: repeatsSameCloud, position: new Vec3(px, top, 0) });
+      this.checkProgressFeedback();
       DouyinBridge.vibrateShort();
       break;
     }
@@ -223,6 +274,7 @@ export class GameManager extends Component {
     if (type === 'coin') this.addCoin();
     else this.addStar();
     this.onCollectibleFeedback?.(type, position);
+    AudioManager.playSound(type);
   }
 
   private finishRun(): void {
@@ -231,6 +283,8 @@ export class GameManager extends Component {
     this.lastLandedCloud = null;
     this.data.resetCombo();
     const stats = this.data.snapshot();
+    this.flushRunProgress();
+    ProgressionService.recordRunResult(stats);
     this.data.bestScore = Math.max(this.data.bestScore, stats.score);
     StorageService.setNumber('cloudBounceBest', this.data.bestScore);
     StorageService.setNumber('cloudBounceCoins', this.data.totalCoins);
@@ -238,6 +292,30 @@ export class GameManager extends Component {
     ranking.push(stats.score);
     ranking.sort((a, b) => b - a);
     StorageService.setJSON('cloudBounceRanking', ranking.slice(0, 10));
+    AudioManager.playSound('gameOver');
+  }
+
+  private checkProgressFeedback(): void {
+    if (!this.player) return;
+    while (this.nextMilestoneIndex < GAME.milestones.length && this.data.score >= GAME.milestones[this.nextMilestoneIndex]) {
+      const milestone = GAME.milestones[this.nextMilestoneIndex];
+      this.nextMilestoneIndex += 1;
+      this.onMilestone?.(milestone, this.player.node.position.clone());
+      AudioManager.playSound('milestone');
+    }
+    while (this.data.score >= this.nextLevelTarget) {
+      const level = Math.floor(this.nextLevelTarget / GAME.levelTarget);
+      this.onLevelComplete?.(level, this.player.node.position.clone());
+      this.nextLevelTarget += GAME.levelTarget;
+    }
+  }
+
+  private flushRunProgress(): void {
+    const delta = Math.max(0, this.runPlayTime - this.recordedPlayTime);
+    if (delta > 0) {
+      ProgressionService.recordPlayTime(delta);
+      this.recordedPlayTime = this.runPlayTime;
+    }
   }
 
   private loadPersistentData(): void {

@@ -30,6 +30,7 @@ export class DreamyHUD extends Component {
   private pausePanel: Node | null = null;
   private lastScore = -1;
   private lastCoins = -1;
+  private lastStars = -1;
   private lastCombo = -1;
   private lastProgress = -1;
   private lastWidth = 0;
@@ -80,7 +81,15 @@ export class DreamyHUD extends Component {
         tween(this.coinLabel.node).to(0.08, { scale: new Vec3(1.2, 1.2, 1) }).to(0.16, { scale: Vec3.ONE }).start();
       }
     }
-    if (this.statsLabel) this.statsLabel.string = `高度 ${Math.floor(data.heightMeters)}m    星星 ${data.stars}`;
+    if (this.statsLabel) {
+      this.statsLabel.string = `高度 ${Math.floor(data.heightMeters)}m    星星 ${data.stars}`;
+      if (this.lastStars >= 0 && data.stars !== this.lastStars) {
+        Tween.stopAllByTarget(this.statsLabel.node);
+        this.statsLabel.node.setScale(1, 1, 1);
+        tween(this.statsLabel.node).to(0.08, { scale: new Vec3(1.12, 1.12, 1) }).to(0.16, { scale: Vec3.ONE }).start();
+      }
+      this.lastStars = data.stars;
+    }
     this.updateCombo(data.combo);
     const progress = Math.min(1, score / GAME.levelTarget);
     if (Math.abs(progress - this.lastProgress) > 0.001) {
@@ -124,11 +133,15 @@ export class DreamyHUD extends Component {
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
 
     this.pausePanel = this.createGlassPanel('PausePanel', 560, 360, 0.82);
-    this.createLabel('PauseTitle', this.pausePanel, '旅程暂停', 52, Color.WHITE).node.setPosition(0, 76, 0);
-    this.createLabel('PauseHint', this.pausePanel, '稍作休息，再向云端出发', 24, new Color(220, 228, 255, 210)).node.setPosition(0, 14, 0);
+    this.createLabel('PauseTitle', this.pausePanel, '旅程暂停', 52, Color.WHITE).node.setPosition(0, 92, 0);
+    this.createLabel('PauseHint', this.pausePanel, '稍作休息，再向云端出发', 24, new Color(220, 228, 255, 210)).node.setPosition(0, 34, 0);
     const resume = this.createRoundedButton('ResumeButton', this.pausePanel, '继续游戏');
-    resume.setPosition(0, -94, 0);
+    resume.setPosition(0, -55, 0);
     resume.on(Button.EventType.CLICK, this.resume, this);
+    const pauseHome = this.createRoundedButton('PauseHomeButton', this.pausePanel, '返回主页');
+    pauseHome.setScale(0.78, 0.78, 1);
+    pauseHome.setPosition(0, -145, 0);
+    pauseHome.on(Button.EventType.CLICK, this.requestHome, this);
     this.pausePanel.active = false;
 
     const visible = view.getVisibleSize();
@@ -237,6 +250,7 @@ export class DreamyHUD extends Component {
     const node = this.createGlassPanel(name, 66, 66, 0.28);
     node.addComponent(Button);
     this.createIcon(`${name}Icon`, node, frame, kind);
+    this.addPressFeedback(node);
     return node;
   }
 
@@ -275,7 +289,19 @@ export class DreamyHUD extends Component {
     graphics.fill();
     this.createLabel(`${name}Label`, node, text, 34, Color.WHITE);
     node.addComponent(Button);
+    this.addPressFeedback(node);
     return node;
+  }
+
+  private addPressFeedback(node: Node): void {
+    const restoreScale = new Vec3();
+    node.on(Node.EventType.TOUCH_START, () => {
+      node.getScale(restoreScale);
+      node.setScale(restoreScale.x * 0.93, restoreScale.y * 0.93, 1);
+    }, this);
+    const restore = (): void => node.setScale(restoreScale);
+    node.on(Node.EventType.TOUCH_END, restore, this);
+    node.on(Node.EventType.TOUCH_CANCEL, restore, this);
   }
 
   private createLabel(name: string, parent: Node, text: string, fontSize: number, color: Color): Label {

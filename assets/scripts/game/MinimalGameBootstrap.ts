@@ -3,6 +3,7 @@ import {
   SpriteFrame, UIOpacity, UITransform, Vec3, VerticalTextAlignment, director, math, view,
 } from 'cc';
 import { GAME } from '../core/GameConfig';
+import { AudioManager } from '../core/AudioManager';
 import { DisplaySettings } from '../core/DisplaySettings';
 import { SceneNavigator } from '../ui/SceneNavigator';
 import { BootSceneBootstrap } from '../ui/BootSceneBootstrap';
@@ -15,6 +16,7 @@ import { PlayerController } from './PlayerController';
 import { DreamyHUD } from '../visual/DreamyHUD';
 import { VisualEffects } from '../visual/VisualEffects';
 import { VisualEnvironment } from '../visual/VisualEnvironment';
+import { StorageService } from '../platform/StorageService';
 const { ccclass, property } = _decorator;
 
 @ccclass('MinimalGameBootstrap')
@@ -43,6 +45,7 @@ export class MinimalGameBootstrap extends Component {
   private worldOpacity: UIOpacity | null = null;
   private hudNode: Node | null = null;
   private resultPanel: Node | null = null;
+  private tutorialPanel: Node | null = null;
   private entryOverlay: Node | null = null;
   private entryLabel: Label | null = null;
   private entryActive = false;
@@ -116,8 +119,11 @@ export class MinimalGameBootstrap extends Component {
 
     const visualEffects = effects.addComponent(VisualEffects);
     visualEffects.configure(this.player, this.gameManager, this.world);
-    this.gameManager.onLandingFeedback = (type, combo, position) => visualEffects.playLandingFeedback(type, combo, position);
+    this.gameManager.onLandingFeedback = (feedback) => visualEffects.playLandingFeedback(feedback);
     this.gameManager.onCollectibleFeedback = (type, position) => visualEffects.playCollectibleFeedback(type, position);
+    this.gameManager.onDashFeedback = (tier, position) => visualEffects.playDashFeedback(tier, position);
+    this.gameManager.onMilestone = (score, position) => visualEffects.playMilestoneFeedback(score, position);
+    this.gameManager.onLevelComplete = (level, position) => visualEffects.playLevelCompleteFeedback(level, position);
     this.gameManager.onRunStarted = (position) => visualEffects.playStartFeedback(position);
     this.gameManager.onRestartRequested = () => this.restart();
 
@@ -132,10 +138,16 @@ export class MinimalGameBootstrap extends Component {
 
     this.buildEntryOverlay();
     this.buildResultPanel();
+    this.buildTutorialPanel();
   }
 
   start(): void {
-    if (this.runtimeRole === 'Game') this.beginEntry();
+    if (this.runtimeRole !== 'Game') return;
+    if (StorageService.getNumber('cloudBounceTutorialSeen', 0) === 0) {
+      if (this.tutorialPanel) this.tutorialPanel.active = true;
+    } else {
+      this.beginEntry();
+    }
   }
 
   update(dt: number): void {
@@ -143,6 +155,7 @@ export class MinimalGameBootstrap extends Component {
     const cameraY = this.cameraRig?.node.position.y ?? 0;
     this.entryOverlay?.setPosition(0, cameraY, 0);
     this.resultPanel?.setPosition(0, cameraY, 0);
+    this.tutorialPanel?.setPosition(0, cameraY, 0);
     if (this.entryActive) this.updateEntry(Math.min(dt, 1 / 30));
 
     if (this.resultPanel && this.gameManager?.phase === 'gameover' && !this.resultPanel.active) {
@@ -211,6 +224,32 @@ export class MinimalGameBootstrap extends Component {
     this.resultPanel.active = false;
   }
 
+  private buildTutorialPanel(): void {
+    this.tutorialPanel = this.createGraphicsNode('FirstGameTutorial', 700, 720);
+    this.tutorialPanel.setScale(DisplaySettings.getUiScale(), DisplaySettings.getUiScale(), 1);
+    const panel = this.tutorialPanel.addComponent(Graphics);
+    panel.fillColor = new Color(34, 39, 94, 244);
+    panel.roundRect(-350, -360, 700, 720, 54); panel.fill();
+    panel.strokeColor = new Color(255, 255, 255, 72); panel.lineWidth = 3;
+    panel.roundRect(-346, -356, 692, 712, 51); panel.stroke();
+    this.createLabel('TutorialTitle', this.tutorialPanel, '第一次云端旅行', 48, new Vec3(0, 260, 0));
+    const steps = this.createLabel('TutorialSteps', this.tutorialPanel,
+      '① 按住屏幕左侧 / 右侧控制方向\n\n② 落在云朵上会自动再次起跳\n\n③ 连续落云累积 Combo\n\n④ 弹簧云跳得更高，找准落点', 27, new Vec3(0, 35, 0));
+    steps.node.getComponent(UITransform)?.setContentSize(610, 390);
+    steps.lineHeight = 42;
+    const begin = this.createButton('TutorialBegin', this.tutorialPanel, '明白了，出发', 380, 94, new Color(255, 170, 112, 255), 31);
+    begin.setPosition(0, -255, 0);
+    begin.on(Button.EventType.CLICK, this.finishTutorial, this);
+    this.tutorialPanel.active = false;
+  }
+
+  private finishTutorial(): void {
+    StorageService.setNumber('cloudBounceTutorialSeen', 1);
+    if (this.tutorialPanel) this.tutorialPanel.active = false;
+    AudioManager.playSound('ui');
+    this.beginEntry();
+  }
+
   private restart(): void {
     if (!this.gameManager) return;
     if (this.resultPanel) this.resultPanel.active = false;
@@ -233,7 +272,14 @@ export class MinimalGameBootstrap extends Component {
   private createButton(name: string, parent: Node, text: string, width: number, height: number, color: Color, size: number): Node {
     const node = this.createGraphicsNode(name, width, height, parent);
     const graphics = node.addComponent(Graphics); graphics.fillColor = color; graphics.roundRect(-width / 2, -height / 2, width, height, Math.min(38, height * 0.42)); graphics.fill();
-    node.addComponent(Button); this.createLabel(`${name}Label`, node, text, size, Vec3.ZERO); return node;
+    node.addComponent(Button); this.createLabel(`${name}Label`, node, text, size, Vec3.ZERO); this.addPressFeedback(node); return node;
+  }
+
+  private addPressFeedback(node: Node): void {
+    node.on(Node.EventType.TOUCH_START, () => node.setScale(0.94, 0.94, 1), this);
+    const restore = (): void => node.setScale(1, 1, 1);
+    node.on(Node.EventType.TOUCH_END, restore, this);
+    node.on(Node.EventType.TOUCH_CANCEL, restore, this);
   }
 
   private createNode(name: string, parent: Node = this.node): Node {

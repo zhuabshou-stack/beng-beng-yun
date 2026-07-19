@@ -14,6 +14,8 @@ export class PlayerController extends Component {
   radius = GAME.playerRadius * GAME.collisionScale;
   onGround = false;
   inputDirection = 0;
+  private dashTier: 0 | 8 | 12 = 0;
+  private dashTimeRemaining = 0;
 
   onLoad(): void {
     this.ensureVisual();
@@ -42,6 +44,8 @@ export class PlayerController extends Component {
     this.node.setPosition(position);
     this.velocity.set(0, 0, 0);
     this.onGround = false;
+    this.dashTier = 0;
+    this.dashTimeRemaining = 0;
   }
 
   setInputDirection(direction: number): void {
@@ -53,12 +57,33 @@ export class PlayerController extends Component {
     this.onGround = false;
   }
 
+  startComboDash(tier: 8 | 12): void {
+    const speedMultiplier = tier === 12 ? GAME.comboDash12SpeedMultiplier : GAME.comboDash8SpeedMultiplier;
+    this.dashTier = tier;
+    this.dashTimeRemaining = tier === 12 ? GAME.comboDash12Duration : GAME.comboDash8Duration;
+    this.velocity.y = Math.max(this.velocity.y, GAME.jumpVelocity * speedMultiplier);
+    this.onGround = false;
+  }
+
+  isDashing(): boolean {
+    return this.dashTier !== 0 && this.dashTimeRemaining > 0;
+  }
+
   simulate(dt: number, viewportWidth: number): void {
     const targetVX = this.inputDirection * GAME.horizontalSpeed;
     this.velocity.x = math.lerp(this.velocity.x, targetVX, Math.min(1, GAME.horizontalAcceleration * dt / GAME.horizontalSpeed));
     if (this.inputDirection === 0) this.velocity.x *= Math.pow(GAME.horizontalDamping, dt * 60);
 
-    this.velocity.y -= GAME.gravity * GAME.tempoScale * GAME.tempoScale * dt;
+    const wasDashing = this.isDashing();
+    this.velocity.y -= GAME.gravity * GAME.tempoScale * GAME.tempoScale * dt * (wasDashing ? GAME.comboDashGravityScale : 1);
+    if (wasDashing) {
+      this.dashTimeRemaining = Math.max(0, this.dashTimeRemaining - dt);
+      if (this.dashTimeRemaining <= 0) {
+        const exitMultiplier = this.dashTier === 12 ? GAME.comboDash12ExitMultiplier : GAME.comboDash8ExitMultiplier;
+        this.velocity.y = Math.min(this.velocity.y, GAME.jumpVelocity * exitMultiplier);
+        this.dashTier = 0;
+      }
+    }
     const pos = this.node.position.clone();
     pos.x += this.velocity.x * dt;
     pos.y += this.velocity.y * dt;
