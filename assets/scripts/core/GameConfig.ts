@@ -1,5 +1,5 @@
 export const GAME = Object.freeze({
-  version: '2.9.3',
+  version: '2.9.4',
   // HTML v2.1.1 是本分支的唯一玩法规格。原版使用 60 FPS 帧单位；
   // Cocos 世界统一放大 2 倍，再换算为秒单位，保留相同的相对跳高和云间距。
   legacyReferenceFps: 60,
@@ -40,6 +40,18 @@ export const GAME = Object.freeze({
   levelRewardCoins: 50,
   springJumpMultiplier: 2,
   comboResetFallSpeed: 120,
+  // HTML 原版保持固定速度；以下增量仅实现本轮明确要求，并以原版速度为 1.0 基准。
+  comboTempoStep: 0.035,
+  comboTempoMax: 1.28,
+  comboMissDropDistance: 180,
+  comboCameraFollowStep: 0.06,
+  comboCameraFollowMax: 1.36,
+  comboFeedbackStep: 0.10,
+  comboFeedbackMax: 1.80,
+  jumpStretchDuration: 0.16,
+  jumpStretchBase: 1.10,
+  jumpStretchComboStep: 0.018,
+  jumpStretchMax: 1.24,
   effectTrailPoolSize: 20,
   effectParticlePoolSize: 128,
   effectFloatTextPoolSize: 12,

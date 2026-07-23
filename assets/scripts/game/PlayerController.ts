@@ -14,15 +14,25 @@ export class PlayerController extends Component {
   radius = GAME.playerRadius * GAME.collisionScale;
   onGround = false;
   inputDirection = 0;
+  tempoScale = 1;
   private skinIndex = 0;
+  private jumpStretchRemaining = 0;
+  private jumpStretchAmount: number = GAME.jumpStretchBase;
 
   onLoad(): void {
     this.ensureVisual();
   }
 
-  update(): void {
+  update(dt: number): void {
     if (!this.visual) return;
-    this.visual.setScale(GAME.playerVisualScale, GAME.playerVisualScale, 1);
+    this.jumpStretchRemaining = Math.max(0, this.jumpStretchRemaining - Math.max(0, dt));
+    const stretchProgress = GAME.jumpStretchDuration > 0 ? this.jumpStretchRemaining / GAME.jumpStretchDuration : 0;
+    const stretch = 1 + (this.jumpStretchAmount - 1) * stretchProgress;
+    this.visual.setScale(
+      GAME.playerVisualScale / Math.sqrt(stretch),
+      GAME.playerVisualScale * stretch,
+      1,
+    );
     this.visual.setRotationFromEuler(0, 0, 0);
   }
 
@@ -46,15 +56,26 @@ export class PlayerController extends Component {
     this.node.setPosition(position);
     this.velocity.set(0, 0, 0);
     this.onGround = false;
+    this.tempoScale = 1;
+    this.jumpStretchRemaining = 0;
   }
 
   setInputDirection(direction: number): void {
     this.inputDirection = Math.sign(direction);
   }
 
-  jump(multiplier = 1): void {
-    this.velocity.y = GAME.jumpVelocity * GAME.tempoScale * multiplier;
+  setTempoScale(scale: number): void {
+    this.tempoScale = math.clamp(scale, 1, GAME.comboTempoMax);
+  }
+
+  jump(multiplier = 1, combo = 0): void {
+    this.velocity.y = GAME.jumpVelocity * GAME.tempoScale * this.tempoScale * multiplier;
     this.onGround = false;
+    this.jumpStretchAmount = Math.min(
+      GAME.jumpStretchMax,
+      GAME.jumpStretchBase + Math.max(0, combo - 1) * GAME.jumpStretchComboStep,
+    );
+    this.jumpStretchRemaining = GAME.jumpStretchDuration;
   }
 
   simulate(dt: number, viewportWidth: number, gravityScale = 1): void {
@@ -68,7 +89,8 @@ export class PlayerController extends Component {
       this.velocity.x *= Math.pow(GAME.horizontalDamping, dt * GAME.legacyReferenceFps);
     }
 
-    this.velocity.y -= GAME.gravity * GAME.tempoScale * GAME.tempoScale * dt * gravityScale;
+    const tempo = GAME.tempoScale * this.tempoScale;
+    this.velocity.y -= GAME.gravity * tempo * tempo * dt * gravityScale;
     const pos = this.node.position.clone();
     pos.x += this.velocity.x * dt;
     pos.y += this.velocity.y * dt;

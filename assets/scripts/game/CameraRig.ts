@@ -9,18 +9,24 @@ export class CameraRig extends Component {
 
   viewportHeight = 1280;
   highestY = 0;
+  private followScale = 1;
 
   reset(): void {
     const pos = this.node.position.clone();
     pos.y = 0;
     this.node.setPosition(pos);
     this.highestY = 0;
+    this.followScale = 1;
+  }
+
+  setComboFollowScale(scale: number): void {
+    this.followScale = Math.max(1, Math.min(GAME.comboCameraFollowMax, scale));
   }
 
   lateUpdate(dt: number): void {
     if (!this.target) return;
     const frameDt = Math.min(Math.max(0, dt), GAME.physicsMaxFrameDelta);
-    const followRate = GAME.cameraFollowRate * GAME.tempoScale;
+    const followRate = GAME.cameraFollowRate * GAME.tempoScale * this.followScale;
     const targetLine = this.node.position.y + this.viewportHeight * (0.5 - GAME.cameraLineRatio);
     if (this.target.position.y <= targetLine) return;
     const wantedY = this.target.position.y - this.viewportHeight * (0.5 - GAME.cameraLineRatio);

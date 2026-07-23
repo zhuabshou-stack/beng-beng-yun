@@ -1,6 +1,7 @@
 import {
-  _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Sprite, SpriteFrame, Tween, UITransform, Vec3, VerticalTextAlignment, tween, view,
+  _decorator, BlockInputEvents, Button, Color, Component, EventTouch, Graphics,
+  HorizontalTextAlignment, Label, Node, Sprite, SpriteFrame, Tween, UITransform, Vec3,
+  VerticalTextAlignment, tween, view,
 } from 'cc';
 import { GAME, SKILLS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
@@ -33,7 +34,9 @@ export class DreamyHUD extends Component {
   private progressLabel: Label | null = null;
   private progressGraphics: Graphics | null = null;
   private pausePanel: Node | null = null;
+  private pauseOverlay: Node | null = null;
   private settingsPanel: Node | null = null;
+  private settingsOverlay: Node | null = null;
   private soundSettingLabel: Label | null = null;
   private musicSettingLabel: Label | null = null;
   private skillBar: Node | null = null;
@@ -46,12 +49,13 @@ export class DreamyHUD extends Component {
   private lastProgress = -1;
   private lastWidth = 0;
   private lastHeight = 0;
+  private settingsClosing = false;
 
   configure(gameManager: GameManager, cameraRig: CameraRig, frames: HUDFrames): void {
     this.gameManager = gameManager;
     this.cameraRig = cameraRig;
     this.build(frames);
-    this.gameManager.onSkillStateChanged = () => this.rebuildSkillBar();
+    this.gameManager.onSkillStateChanged = () => this.updateSkillBar();
     this.applyDisplaySettings();
   }
 
@@ -110,7 +114,7 @@ export class DreamyHUD extends Component {
       this.drawProgress(progress);
       if (this.progressLabel) this.progressLabel.string = `云端旅程  ${score}/${levelTarget}`;
     }
-    if (this.pausePanel) this.pausePanel.active = this.gameManager.phase === 'paused' && !this.settingsPanel?.active;
+    if (this.pauseOverlay) this.pauseOverlay.active = this.gameManager.phase === 'paused' && !this.settingsOverlay?.active;
     this.updateSkillBar();
   }
 
@@ -151,7 +155,8 @@ export class DreamyHUD extends Component {
     const versionLabel = this.createLabel('VersionLabel', this.node, `v${GAME.version}`, 16, new Color(255, 255, 255, 115));
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
 
-    this.pausePanel = this.createGlassPanel('PausePanel', 600, 820, 0.94);
+    this.pauseOverlay = this.createModalOverlay('PauseOverlay');
+    this.pausePanel = this.createGlassPanel('PausePanel', 600, 820, 0.94, this.pauseOverlay);
     this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 48, Color.WHITE).node.setPosition(0, 335, 0);
     const resume = this.createRoundedButton('ResumeButton', this.pausePanel, '继续游戏');
     resume.setPosition(0, 225, 0);
@@ -169,9 +174,10 @@ export class DreamyHUD extends Component {
     pauseHome.setScale(0.78, 0.78, 1);
     pauseHome.setPosition(0, -335, 0);
     pauseHome.on(Button.EventType.CLICK, this.requestHome, this);
-    this.pausePanel.active = false;
+    this.pauseOverlay.active = false;
 
-    this.settingsPanel = this.createGlassPanel('SettingsPanel', 560, 500, 0.96);
+    this.settingsOverlay = this.createModalOverlay('SettingsOverlay');
+    this.settingsPanel = this.createGlassPanel('SettingsPanel', 560, 500, 0.96, this.settingsOverlay);
     this.createLabel('SettingsTitle', this.settingsPanel, '⚙️ 设置', 44, Color.WHITE).node.setPosition(0, 185, 0);
     const sound = this.createRoundedButton('SoundSettingButton', this.settingsPanel, '🔊 音效');
     sound.setPosition(0, 72, 0); sound.on(Button.EventType.CLICK, this.toggleSound, this);
@@ -182,7 +188,7 @@ export class DreamyHUD extends Component {
     const closeSettings = this.createRoundedButton('CloseSettingsButton', this.settingsPanel, '关闭');
     closeSettings.setScale(0.78, 0.78, 1); closeSettings.setPosition(0, -170, 0);
     closeSettings.on(Button.EventType.CLICK, this.closeSettingsPanel, this);
-    this.settingsPanel.active = false;
+    this.settingsOverlay.active = false;
     this.refreshAudioSettingLabels();
 
     const visible = view.getVisibleSize();
@@ -208,6 +214,8 @@ export class DreamyHUD extends Component {
     this.skillBar?.setPosition(halfWidth - safe.right / scale - 48, top - 104, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);
+    this.pauseOverlay?.getComponent(UITransform)?.setContentSize(width / scale, height / scale);
+    this.settingsOverlay?.getComponent(UITransform)?.setContentSize(width / scale, height / scale);
     this.pausePanel?.setPosition(0, 0, 0);
     this.settingsPanel?.setPosition(0, 0, 0);
   }
@@ -256,14 +264,15 @@ export class DreamyHUD extends Component {
   }
 
   private requestHome(): void {
-    if (this.pausePanel) this.pausePanel.active = false;
+    if (this.pauseOverlay) this.pauseOverlay.active = false;
+    if (this.settingsOverlay) this.settingsOverlay.active = false;
     this.onHomeRequested?.();
   }
 
   private openPausePanel(): void {
     this.gameManager?.pause();
+    if (this.pauseOverlay) this.pauseOverlay.active = true;
     if (this.pausePanel) {
-      this.pausePanel.active = true;
       this.pausePanel.setScale(0.9, 0.9, 1);
       tween(this.pausePanel).to(0.2, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
     }
@@ -271,25 +280,32 @@ export class DreamyHUD extends Component {
 
   private resume(): void {
     this.gameManager?.resume();
-    if (this.pausePanel) this.pausePanel.active = false;
+    if (this.pauseOverlay) this.pauseOverlay.active = false;
   }
 
   private restart(): void {
-    if (this.pausePanel) this.pausePanel.active = false;
+    if (this.pauseOverlay) this.pauseOverlay.active = false;
     this.gameManager?.onRestartRequested?.();
   }
 
   private openSettingsPanel(): void {
     if (!this.gameManager) return;
+    this.settingsClosing = false;
     if (this.gameManager.phase === 'playing') this.gameManager.pause();
-    if (this.pausePanel) this.pausePanel.active = false;
-    if (this.settingsPanel) this.settingsPanel.active = true;
+    if (this.pauseOverlay) this.pauseOverlay.active = false;
+    if (this.settingsOverlay) this.settingsOverlay.active = true;
     this.refreshAudioSettingLabels();
   }
 
   private closeSettingsPanel(): void {
-    if (this.settingsPanel) this.settingsPanel.active = false;
-    if (this.gameManager?.phase === 'paused' && this.pausePanel) this.pausePanel.active = true;
+    if (this.settingsClosing) return;
+    this.settingsClosing = true;
+    this.scheduleOnce(() => {
+      if (this.settingsOverlay) this.settingsOverlay.active = false;
+      this.gameManager?.resume();
+      if (this.pauseOverlay) this.pauseOverlay.active = false;
+      this.settingsClosing = false;
+    }, 0);
   }
 
   private toggleSound(): void {
@@ -309,7 +325,7 @@ export class DreamyHUD extends Component {
 
   private rebuildSkillBar(): void {
     if (!this.skillBar || !this.gameManager) return;
-    this.skillBar.removeAllChildren();
+    for (const child of [...this.skillBar.children]) child.destroy();
     this.skillLabels.clear();
     this.skillButtons.clear();
     const active = LegacyProgression.loadActiveSkills();
@@ -344,12 +360,13 @@ export class DreamyHUD extends Component {
       label.string = cooldown > 0 ? `${Math.ceil(cooldown)}s` : `${data[id].uses}`;
       label.color = cooldown > 0 || data[id].uses <= 0 ? new Color(255, 120, 120, 220) : new Color(255, 215, 0, 255);
       const button = this.skillButtons.get(id);
-      if (button) button.interactable = cooldown <= 0 && data[id].uses > 0;
+      // 保持按钮可点击，让冷却、未购买、次数不足等状态能显示明确原因。
+      if (button) button.interactable = true;
     }
   }
 
-  private createGlassPanel(name: string, width: number, height: number, alpha: number): Node {
-    const node = this.createNode(name, this.node);
+  private createGlassPanel(name: string, width: number, height: number, alpha: number, parent = this.node): Node {
+    const node = this.createNode(name, parent);
     const transform = node.addComponent(UITransform);
     transform.setContentSize(width, height);
     const graphics = node.addComponent(Graphics);
@@ -361,6 +378,25 @@ export class DreamyHUD extends Component {
     graphics.roundRect(-width * 0.5 + 1, -height * 0.5 + 1, width - 2, height - 2, Math.min(33, height * 0.4));
     graphics.stroke();
     return node;
+  }
+
+  private createModalOverlay(name: string): Node {
+    const visible = view.getVisibleSize();
+    const overlay = this.createNode(name, this.node);
+    overlay.addComponent(UITransform).setContentSize(visible.width, visible.height);
+    overlay.addComponent(BlockInputEvents);
+    const veil = overlay.addComponent(Graphics);
+    veil.fillColor = new Color(5, 8, 24, 178);
+    veil.rect(-visible.width * 0.5, -visible.height * 0.5, visible.width, visible.height);
+    veil.fill();
+    const stop = (event: EventTouch): void => {
+      event.propagationStopped = true;
+    };
+    overlay.on(Node.EventType.TOUCH_START, stop, this);
+    overlay.on(Node.EventType.TOUCH_MOVE, stop, this);
+    overlay.on(Node.EventType.TOUCH_END, stop, this);
+    overlay.on(Node.EventType.TOUCH_CANCEL, stop, this);
+    return overlay;
   }
 
   private createGlassButton(name: string, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'settings'): Node {

@@ -214,43 +214,39 @@ export class MinimalGameBootstrap extends Component {
     this.entryTime = 0;
     this.entryActive = true;
     if (this.entryOverlay) this.entryOverlay.active = true;
-    if (this.entryLabel) this.entryLabel.string = '准备开始...';
+    if (this.entryLabel) {
+      this.entryLabel.string = '☁️ 出发！';
+      this.entryLabel.node.active = true;
+    }
     if (this.entryAvatarOpacity) this.entryAvatarOpacity.opacity = 255;
     if (this.entryFlashOpacity) this.entryFlashOpacity.opacity = 0;
     if (this.hudNode) this.hudNode.active = false;
-    if (this.worldOpacity) this.worldOpacity.opacity = 145;
+    if (this.worldOpacity) this.worldOpacity.opacity = 35;
     this.player.node.setScale(0.72, 0.72, 1);
   }
 
   private updateEntry(dt: number): void {
     this.entryTime += Math.min(dt, GAME.physicsMaxFrameDelta);
-    const reveal = math.clamp01(this.entryTime / 0.55);
-    const travel = math.clamp01((this.entryTime - 0.55) / 0.8);
-    const easedTravel = travel * travel * (3 - 2 * travel);
+    const reveal = math.clamp01(this.entryTime / 0.38);
     for (const cloud of this.entryClouds) {
       cloud.node.setPosition(cloud.baseX, cloud.baseY + Math.sin(this.entryTime * 1.8 + cloud.phase) * 15, 0);
     }
     if (this.entryAvatar) {
-      const bounce = reveal < 1 ? Math.abs(Math.sin(reveal * Math.PI * 3.5)) * 0.14 : 0;
-      const scale = travel > 0 ? math.lerp(1, 0.1, easedTravel) : math.lerp(0.3, 1, reveal) + bounce;
+      const bounce = Math.sin(reveal * Math.PI) * 0.1;
+      const scale = math.lerp(0.72, 1, reveal) + bounce;
       this.entryAvatar.setScale(scale, scale, 1);
-      this.entryAvatar.setPosition(0, easedTravel * this.lastViewportHeight * 0.6, 0);
+      this.entryAvatar.setPosition(0, math.lerp(-40, 30, reveal), 0);
     }
-    if (this.entryAvatarOpacity) this.entryAvatarOpacity.opacity = Math.round(255 * (1 - easedTravel * 0.5));
-    const worldReveal = math.clamp01((this.entryTime - 0.85) / 0.75);
-    if (this.worldOpacity) this.worldOpacity.opacity = Math.round(145 + worldReveal * 110);
-    this.player?.node.setScale(0.72 + worldReveal * 0.28, 0.72 + worldReveal * 0.28, 1);
+    if (this.entryAvatarOpacity) this.entryAvatarOpacity.opacity = Math.round(255 * (1 - reveal));
+    if (this.worldOpacity) this.worldOpacity.opacity = Math.round(35 + reveal * 220);
+    this.player?.node.setScale(0.72 + reveal * 0.28, 0.72 + reveal * 0.28, 1);
     if (this.entryLabel) {
-      this.entryLabel.string = this.entryTime < 0.78 ? '准备开始...' : '🚀 出发!';
-      const pulse = 0.94 + Math.sin(this.entryTime * 15) * 0.06;
+      const pulse = 0.96 + Math.sin(this.entryTime * 18) * 0.04;
       this.entryLabel.node.setScale(pulse, pulse, 1);
-      this.entryLabel.node.active = this.entryTime >= 0.68;
+      this.entryLabel.node.active = reveal < 0.78;
     }
-    if (this.entryFlashOpacity) {
-      const flash = math.clamp01((this.entryTime - 1.3) / 0.18);
-      this.entryFlashOpacity.opacity = Math.round(Math.sin(flash * Math.PI) * 220);
-    }
-    if (this.entryTime < 1.66) return;
+    if (this.entryFlashOpacity) this.entryFlashOpacity.opacity = 0;
+    if (this.entryTime < 0.38) return;
     this.entryActive = false;
     if (this.entryOverlay) this.entryOverlay.active = false;
     if (this.hudNode) this.hudNode.active = true;

@@ -23,6 +23,7 @@ export interface LandingFeedback {
   type: CloudType;
   combo: number;
   scoreGain: number;
+  tempoScale: number;
   position: Vec3;
 }
 
@@ -57,6 +58,7 @@ export class GameManager extends Component {
   private viewportHeight = 1280;
   private previousPlayerY = 0;
   private lastLandedCloud: CloudPlatform | null = null;
+  private lastLandingY = 0;
   private touchDirection = 0;
   private escapeHeld = false;
   private restartHeld = false;
@@ -130,6 +132,7 @@ export class GameManager extends Component {
     if (resetLevel) this.currentLevel = 1;
     this.data.resetRun();
     this.lastLandedCloud = null;
+    this.lastLandingY = 0;
     this.phase = 'idle';
     this.runPlayTime = 0;
     this.recordedPlayTime = 0;
@@ -146,6 +149,7 @@ export class GameManager extends Component {
     this.history.length = 0;
     this.resetInputState();
     this.player.reset(new Vec3(0, -260, 0));
+    this.player.setTempoScale(1);
     this.player.setSkinIndex(this.data.selectedSkin);
     this.player.setGhostVisual(false);
     this.collectibleManager?.reset();
@@ -169,7 +173,7 @@ export class GameManager extends Component {
     this.flushRunProgress();
     this.phase = 'idle';
     this.lastLandedCloud = null;
-    this.data.resetCombo();
+    this.resetComboTempo();
     this.resetInputState();
   }
 
@@ -211,14 +215,19 @@ export class GameManager extends Component {
     }
     if (this.doubleJumpReady && this.player.velocity.y < 0) {
       this.doubleJumpReady = false;
-      this.player.jump(0.7);
+      this.player.jump(0.7, this.data.combo);
       ProgressionService.recordJump();
       this.onSkillToast?.('🦘 二段跳!');
     }
     const landed = this.ghostRemaining <= 0 && this.resolveLanding();
-    if (!landed && this.player.velocity.y < -GAME.comboResetFallSpeed && this.data.combo > 0) {
+    if (
+      !landed
+      && this.lastLandedCloud
+      && this.player.velocity.y < -GAME.comboResetFallSpeed
+      && this.player.node.position.y + this.player.radius < this.lastLandingY - GAME.comboMissDropDistance
+    ) {
       this.lastLandedCloud = null;
-      this.data.resetCombo();
+      this.resetComboTempo();
     }
     this.collectibleManager?.collectTouching(this.player, this.handleCollected);
     if (this.magnetRemaining > 0) {
@@ -239,6 +248,8 @@ export class GameManager extends Component {
     if (this.player.node.position.y < cameraY - this.viewportHeight * GAME.deathLineRatio - GAME.deathMargin) {
       if (this.shieldActive) {
         this.shieldActive = false;
+        this.lastLandedCloud = null;
+        this.resetComboTempo();
         this.player.node.setPosition(this.player.node.position.x, cameraY - this.viewportHeight * 0.1, 0);
         this.player.velocity.set(0, GAME.shieldBounceVelocity, 0);
         this.onSkillToast?.('🛡️ 护盾触发!');
@@ -261,12 +272,14 @@ export class GameManager extends Component {
   }
 
   useSkill(id: SkillId): boolean {
-    if (this.phase !== 'playing') return false;
     const definition = SKILLS.find((skill) => skill.id === id);
+    const unavailable = this.getSkillUnavailableReason(id);
+    if (!definition || unavailable) {
+      this.onSkillToast?.(unavailable ?? '技能不存在');
+      return false;
+    }
     const skills = LegacyProgression.loadSkills();
     const entry = skills[id];
-    if (!definition || !entry.owned || entry.uses <= 0) return false;
-    if ((this.cooldownUntil.get(id) ?? 0) > this.gameTime) return false;
     entry.uses -= 1;
     LegacyProgression.saveSkills(skills);
     this.cooldownUntil.set(id, this.gameTime + definition.cooldownSeconds);
@@ -287,6 +300,22 @@ export class GameManager extends Component {
     return Math.max(0, (this.cooldownUntil.get(id) ?? 0) - this.gameTime);
   }
 
+  getSkillUnavailableReason(id: SkillId): string | null {
+    const definition = SKILLS.find((skill) => skill.id === id);
+    if (!definition) return '技能不存在';
+    if (this.phase === 'paused') return '游戏已暂停，请先关闭设置或继续游戏';
+    if (this.phase !== 'playing') return this.phase === 'complete' ? '关卡已完成' : '技能只能在游戏中使用';
+    const entry = LegacyProgression.loadSkills()[id];
+    if (!entry.owned) return `${definition.name}尚未购买`;
+    if (entry.uses <= 0) return `${definition.name}本局可用次数已耗尽`;
+    const cooldown = this.getSkillCooldown(id);
+    if (cooldown > 0) return `${definition.name}冷却中（${Math.ceil(cooldown)}秒）`;
+    if (id === 'shield' && this.shieldActive) return '护盾已经生效';
+    if (id === 'doubleJump' && this.doubleJumpReady) return '二段跳已经待命';
+    if (id === 'timeWarp' && this.history.length === 0) return '暂无可回溯记录';
+    return null;
+  }
+
   private resolveLanding(): boolean {
     if (!this.player || !this.cloudManager || this.player.velocity.y > 0) return false;
     const currentY = this.player.node.position.y;
@@ -303,10 +332,21 @@ export class GameManager extends Component {
       if (!crossesTop || !insideX) continue;
 
       this.player.node.setPosition(px, top + this.player.radius, 0);
-      const scoreGain = this.data.registerLanding(true);
+      const continuesCombo = cloud !== this.lastLandedCloud;
+      const scoreGain = this.data.registerLanding(continuesCombo);
       this.lastLandedCloud = cloud;
+      this.lastLandingY = top;
+      const tempoScale = Math.min(
+        GAME.comboTempoMax,
+        1 + Math.max(0, this.data.combo - 1) * GAME.comboTempoStep,
+      );
+      this.player.setTempoScale(tempoScale);
+      this.cameraRig?.setComboFollowScale(Math.min(
+        GAME.comboCameraFollowMax,
+        1 + Math.max(0, this.data.combo - 1) * GAME.comboCameraFollowStep,
+      ));
       cloud.playLandingBounce(cloud.type === 'spring');
-      this.player.jump(cloud.type === 'spring' ? GAME.springJumpMultiplier : 1);
+      this.player.jump(cloud.type === 'spring' ? GAME.springJumpMultiplier : 1, this.data.combo);
       ProgressionService.recordLanding();
       ProgressionService.recordJump();
       AudioManager.playSound(cloud.type === 'spring' ? 'spring' : 'jump');
@@ -314,7 +354,13 @@ export class GameManager extends Component {
       if (this.data.combo >= 5) {
         AudioManager.playSound('combo');
       }
-      this.onLandingFeedback?.({ type: cloud.type, combo: this.data.combo, scoreGain, position: new Vec3(px, top, 0) });
+      this.onLandingFeedback?.({
+        type: cloud.type,
+        combo: this.data.combo,
+        scoreGain,
+        tempoScale,
+        position: new Vec3(px, top, 0),
+      });
       this.checkProgressFeedback();
       DouyinBridge.vibrateShort();
       return true;
@@ -333,7 +379,7 @@ export class GameManager extends Component {
   private finishRun(): void {
     this.phase = 'gameover';
     this.lastLandedCloud = null;
-    this.data.resetCombo();
+    this.resetComboTempo();
     const stats = this.data.snapshot();
     this.flushRunProgress();
     ProgressionService.recordRunResult(stats);
@@ -392,6 +438,12 @@ export class GameManager extends Component {
     this.player.node.setPosition(entry.position);
     this.player.velocity.set(entry.velocity);
     this.data.score = entry.score;
+  }
+
+  private resetComboTempo(): void {
+    this.data.resetCombo();
+    this.player?.setTempoScale(1);
+    this.cameraRig?.setComboFollowScale(1);
   }
 
   private flushRunProgress(): void {

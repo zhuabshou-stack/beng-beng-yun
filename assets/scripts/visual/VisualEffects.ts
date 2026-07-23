@@ -74,7 +74,7 @@ export class VisualEffects extends Component {
     if (this.gameManager.phase === 'playing') {
       const highSpeed = Math.abs(this.player.velocity.y) > GAME.jumpVelocity * GAME.tempoScale * 1.22;
       this.trailTimer += step;
-      const trailInterval = 2 / GAME.legacyReferenceFps;
+      const trailInterval = 2 / GAME.legacyReferenceFps / this.player.tempoScale;
       if (this.trailTimer >= trailInterval) {
         this.trailTimer = 0;
         this.spawnTrailDot(highSpeed);
@@ -89,8 +89,12 @@ export class VisualEffects extends Component {
   playLandingFeedback(feedback: LandingFeedback): void {
     const { type, combo, position } = feedback;
     const spring = type === 'spring';
+    const intensity = Math.min(
+      GAME.comboFeedbackMax,
+      1 + Math.max(0, combo - 1) * GAME.comboFeedbackStep,
+    );
     const color = spring ? new Color(255, 205, 92, 255) : new Color(245, 251, 255, 235);
-    this.emitBurst(position, color, 8, 180, 'radial');
+    this.emitBurst(position, color, Math.round((spring ? 12 : 8) * intensity), 180 * intensity, 'radial');
     if (spring) this.showFloatText(position, '🚀 弹射!', new Color(255, 107, 0, 255));
     if (combo >= 3 && combo % 3 === 0) {
       this.showFloatText(position, combo % 5 === 0 ? `🔥 ${combo} 连击!!` : `🔥 ${combo} 连击!`, combo % 5 === 0 ? new Color(255, 215, 0, 255) : new Color(255, 107, 107, 255));
@@ -231,11 +235,13 @@ export class VisualEffects extends Component {
     if (!this.player || !this.gameManager || this.trail.length === 0) return;
     const dot = this.trail[this.trailCursor];
     this.trailCursor = (this.trailCursor + 1) % this.trail.length;
-    const heated = this.gameManager.data.combo >= 3;
+    const combo = this.gameManager.data.combo;
+    const heated = combo >= 3;
+    const intensity = Math.min(GAME.comboFeedbackMax, 1 + Math.max(0, combo - 1) * GAME.comboFeedbackStep);
     dot.graphics.clear();
     dot.graphics.fillColor = highSpeed ? new Color(255, 247, 190, 245)
       : heated ? new Color(255, 226, 130, 235) : new Color(255, 199, 109, 205);
-    dot.graphics.circle(0, 0, highSpeed ? 28 : heated ? 25 : 22);
+    dot.graphics.circle(0, 0, (highSpeed ? 28 : heated ? 25 : 22) * Math.min(1.28, intensity));
     dot.graphics.fill();
     dot.node.active = true;
     dot.node.setPosition(this.player.node.position);

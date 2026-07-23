@@ -1,6 +1,7 @@
 import {
-  _decorator, Button, Camera, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Sprite, SpriteFrame, Tween, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math, tween, view,
+  _decorator, BlockInputEvents, Button, Camera, Color, Component, EventTouch, Graphics,
+  HorizontalTextAlignment, Label, Node, Sprite, SpriteFrame, Tween, UIOpacity, UITransform,
+  Vec3, VerticalTextAlignment, math, tween, view,
 } from 'cc';
 import { AudioManager } from '../core/AudioManager';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
@@ -13,6 +14,9 @@ const { ccclass, property } = _decorator;
 interface HomeParticle { node: Node; phase: number; speed: number; }
 interface HomeCloud { node: Node; speed: number; width: number; }
 
+const HOME_DARK_MODE_KEY = 'cloudBounceDarkMode';
+const START_TRANSITION_SECONDS = 0.78;
+
 @ccclass('HomeSceneBootstrap')
 export class HomeSceneBootstrap extends Component {
   @property(SpriteFrame)
@@ -21,10 +25,16 @@ export class HomeSceneBootstrap extends Component {
   private coinLabel: Label | null = null;
   private statusLabel: Label | null = null;
   private overlay: Node | null = null;
+  private homeContent: Node | null = null;
+  private homeContentOpacity: UIOpacity | null = null;
+  private startButton: Button | null = null;
+  private homeBackground: Graphics | null = null;
+  private darkMode = true;
   private elapsed = 0;
   private starting = false;
-  private startTransitionTime = 0;
   private gameSceneReady = false;
+  private transitionAnimationReady = false;
+  private sceneLoadRequested = false;
   private transitionOverlay: Node | null = null;
   private transitionOpacity: UIOpacity | null = null;
   private viewportWidth = 1080;
@@ -33,6 +43,7 @@ export class HomeSceneBootstrap extends Component {
   private readonly clouds: HomeCloud[] = [];
 
   onLoad(): void {
+    this.darkMode = StorageService.getJSON<boolean>(HOME_DARK_MODE_KEY, true) !== false;
     const visible = view.getVisibleSize();
     this.viewportWidth = visible.width;
     this.viewportHeight = visible.height;
@@ -62,26 +73,20 @@ export class HomeSceneBootstrap extends Component {
       if (cloud.speed < 0 && pos.x < -edge) pos.x = edge;
       cloud.node.setPosition(pos);
     }
-    if (this.starting) {
-      this.startTransitionTime += Math.min(dt, 0.1);
-      const progress = math.clamp01(this.startTransitionTime / 0.42);
-      if (this.transitionOpacity) this.transitionOpacity.opacity = Math.round(255 * progress);
-      if (this.gameSceneReady && this.startTransitionTime >= 0.42) {
-        this.starting = false;
-        SceneNavigator.game();
-      }
-    }
+    this.tryEnterGame();
   }
 
   private buildHome(): void {
-    const topCoin = this.createPanel('CoinBadge', this.node, 180, 70, new Color(0, 0, 0, 82), 35);
+    this.homeContent = this.createNode('HomeContent', this.node);
+    this.homeContentOpacity = this.homeContent.addComponent(UIOpacity);
+    const topCoin = this.createPanel('CoinBadge', this.homeContent, 180, 70, new Color(0, 0, 0, 82), 35);
     topCoin.setPosition(-430, 865, 0);
     this.coinLabel = this.createLabel('CoinCount', topCoin, '💰 0', 29, new Color(255, 215, 0, 255));
-    const settings = this.createButton('SettingsButton', this.node, '⚙', 70, 70, new Color(255, 255, 255, 38), 31, 35);
+    const settings = this.createButton('SettingsButton', this.homeContent, '⚙', 70, 70, new Color(255, 255, 255, 38), 31, 35);
     settings.setPosition(450, 865, 0);
     settings.on(Button.EventType.CLICK, () => this.openSettings(), this);
 
-    const logo = this.createNode('LogoArea', this.node);
+    const logo = this.createNode('LogoArea', this.homeContent);
     logo.setPosition(0, 590, 0);
     logo.addComponent(UITransform).setContentSize(650, 330);
     if (this.logoSpriteFrame) {
@@ -97,9 +102,10 @@ export class HomeSceneBootstrap extends Component {
     this.createLabel('Subtitle', logo, '向上跳跃，收集星光 ✨', 28, new Color(255, 255, 255, 190)).node.setPosition(0, -67, 0);
     this.createLabel('TapHint', logo, '点击下方按钮开始冒险', 20, new Color(255, 255, 255, 92)).node.setPosition(0, -112, 0);
 
-    const start = this.createButton('StartButton', this.node, '🚀  开始游戏', 660, 100, new Color(245, 87, 108, 255), 36, 44);
+    const start = this.createButton('StartButton', this.homeContent, '🚀  开始游戏', 660, 100, new Color(245, 87, 108, 255), 36, 44);
     start.setPosition(0, 310, 0);
     start.on(Button.EventType.CLICK, this.startGame, this);
+    this.startButton = start.getComponent(Button);
 
     const entries: Array<{ name: string; icon: string; label: string; desc: string; action: () => void; accent: Color }> = [
       { name: 'SkinCard', icon: '🎨', label: '皮肤', desc: '更换角色外观', action: () => this.openSkins(), accent: new Color(79, 172, 254, 255) },
@@ -115,9 +121,9 @@ export class HomeSceneBootstrap extends Component {
       card.on(Button.EventType.CLICK, entry.action, this);
     });
 
-    this.statusLabel = this.createLabel('HomeStatus', this.node, '👆 按住屏幕左侧或右侧移动', 22, new Color(255, 255, 255, 175));
+    this.statusLabel = this.createLabel('HomeStatus', this.homeContent, '👆 按住屏幕左侧或右侧移动', 22, new Color(255, 255, 255, 175));
     this.statusLabel.node.setPosition(0, -620, 0);
-    this.createLabel('Version', this.node, `v${GAME.version} · HTML 高清复刻`, 18, new Color(255, 255, 255, 76)).node.setPosition(0, -850, 0);
+    this.createLabel('Version', this.homeContent, `v${GAME.version} · HTML 高清复刻`, 18, new Color(255, 255, 255, 76)).node.setPosition(0, -850, 0);
     this.buildTransitionOverlay();
   }
 
@@ -126,15 +132,8 @@ export class HomeSceneBootstrap extends Component {
     background.setSiblingIndex(0);
     background.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
     const graphics = background.addComponent(Graphics);
-    const colors = [new Color(15, 12, 41), new Color(48, 43, 99), new Color(36, 36, 62)];
-    for (let i = 0; i < 48; i += 1) {
-      const t = i / 47;
-      const segment = Math.min(1, Math.floor(t * 2));
-      const local = t * 2 - segment;
-      graphics.fillColor = this.mix(colors[segment], colors[segment + 1], local);
-      const bandHeight = this.viewportHeight / 48;
-      graphics.rect(-this.viewportWidth * 0.5, this.viewportHeight * 0.5 - (i + 1) * bandHeight, this.viewportWidth, bandHeight + 2); graphics.fill();
-    }
+    this.homeBackground = graphics;
+    this.redrawHomeGradient();
     for (let i = 0; i < 50; i += 1) {
       const star = this.createNode(`HomeParticle_${i}`, background);
       star.setPosition(
@@ -155,6 +154,23 @@ export class HomeSceneBootstrap extends Component {
       art.fillColor = new Color(255, 255, 255, 12 + (i % 3) * 5);
       art.ellipse(0, 0, width * 0.5, 28); art.ellipse(-width * 0.2, 12, width * 0.25, 30); art.ellipse(width * 0.2, 10, width * 0.22, 26); art.fill();
       this.clouds.push({ node: cloud, width, speed: (8 + i * 2) * (i % 2 === 0 ? 1 : -1) });
+    }
+  }
+
+  private redrawHomeGradient(): void {
+    const graphics = this.homeBackground;
+    if (!graphics) return;
+    graphics.clear();
+    const colors = this.darkMode
+      ? [new Color(15, 12, 41), new Color(48, 43, 99), new Color(36, 36, 62)]
+      : [new Color(91, 134, 229), new Color(126, 175, 236), new Color(177, 210, 238)];
+    for (let i = 0; i < 48; i += 1) {
+      const t = i / 47;
+      const segment = Math.min(1, Math.floor(t * 2));
+      const local = t * 2 - segment;
+      graphics.fillColor = this.mix(colors[segment], colors[segment + 1], local);
+      const bandHeight = this.viewportHeight / 48;
+      graphics.rect(-this.viewportWidth * 0.5, this.viewportHeight * 0.5 - (i + 1) * bandHeight, this.viewportWidth, bandHeight + 2); graphics.fill();
     }
   }
 
@@ -258,19 +274,28 @@ export class HomeSceneBootstrap extends Component {
 
   private openSettings(): void {
     const panel = this.openOverlay('SettingsOverlay', '⚙️ 设置', 760, 790);
-    const rows: Array<{ label: string; value: string; action?: () => void }> = [
-      { label: '🔊 音效', value: AudioManager.soundEnabled ? '开' : '关', action: () => { AudioManager.setSoundEnabled(!AudioManager.soundEnabled); this.openSettings(); } },
-      { label: '🎵 音乐', value: AudioManager.musicEnabled ? '开' : '关', action: () => { AudioManager.setMusicEnabled(!AudioManager.musicEnabled); this.openSettings(); } },
-      { label: '🌙 深色模式', value: '始终开启' },
+    const rows: Array<{ label: string; value: () => string; action: () => void }> = [
+      { label: '🔊 音效', value: () => AudioManager.soundEnabled ? '开' : '关', action: () => AudioManager.setSoundEnabled(!AudioManager.soundEnabled) },
+      { label: '🎵 音乐', value: () => AudioManager.musicEnabled ? '开' : '关', action: () => AudioManager.setMusicEnabled(!AudioManager.musicEnabled) },
+      { label: '🌙 深色模式', value: () => this.darkMode ? '开' : '关', action: () => {
+        this.darkMode = !this.darkMode;
+        StorageService.setJSON(HOME_DARK_MODE_KEY, this.darkMode);
+        this.redrawHomeGradient();
+      } },
     ];
     rows.forEach((row, index) => {
       const item = this.createPanel(`Setting_${index}`, panel, 620, 105, new Color(255, 255, 255, 8), 18);
       item.setPosition(0, 145 - index * 125, 0);
       const label = this.createLabel(`SettingLabel_${index}`, item, row.label, 26, new Color(255, 255, 255, 215));
       label.horizontalAlign = HorizontalTextAlignment.LEFT; label.node.setPosition(-145, 0, 0);
-      const value = this.createLabel(`SettingValue_${index}`, item, row.value, 23, new Color(180, 195, 255, 220));
+      const value = this.createLabel(`SettingValue_${index}`, item, row.value(), 23, new Color(180, 195, 255, 220));
       value.horizontalAlign = HorizontalTextAlignment.RIGHT; value.node.setPosition(200, 0, 0);
-      if (row.action) { item.addComponent(Button); item.on(Button.EventType.CLICK, row.action, this); this.addPressFeedback(item); }
+      item.addComponent(Button);
+      item.on(Button.EventType.CLICK, () => {
+        row.action();
+        value.string = row.value();
+      }, this);
+      this.addPressFeedback(item);
     });
     this.addCloseButton(panel, -300);
   }
@@ -279,6 +304,8 @@ export class HomeSceneBootstrap extends Component {
     this.closeOverlay();
     this.overlay = this.createNode(name, this.node);
     this.overlay.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
+    this.overlay.addComponent(BlockInputEvents);
+    this.blockTouchPropagation(this.overlay);
     const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 178); veil.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight); veil.fill();
     const panel = this.createPanel(`${name}Panel`, this.overlay, width, height, new Color(26, 26, 46, 250), 48);
     this.createLabel(`${name}Title`, panel, title, 43, Color.WHITE).node.setPosition(0, height * 0.5 - 85, 0);
@@ -295,37 +322,104 @@ export class HomeSceneBootstrap extends Component {
 
   private closeOverlay(): void {
     if (!this.overlay) return;
-    Tween.stopAllByTarget(this.overlay);
-    this.overlay.destroy();
+    const closing = this.overlay;
     this.overlay = null;
+    Tween.stopAllByTarget(closing);
+    // 保留输入阻断到本次触摸派发结束，避免关闭后同一次 TOUCH_END 命中下层按钮。
+    this.scheduleOnce(() => closing.destroy(), 0);
   }
 
   private startGame(): void {
     if (this.starting) return;
     this.starting = true;
-    this.startTransitionTime = 0;
     this.gameSceneReady = false;
+    this.transitionAnimationReady = false;
+    this.sceneLoadRequested = false;
+    if (this.startButton) this.startButton.interactable = false;
     if (this.transitionOverlay) this.transitionOverlay.active = true;
     if (this.transitionOpacity) this.transitionOpacity.opacity = 0;
     if (this.statusLabel) this.statusLabel.string = '准备开始...';
+    this.playStartTransition();
     SceneNavigator.preload('Game', undefined, () => { this.gameSceneReady = true; });
   }
 
   private buildTransitionOverlay(): void {
     this.transitionOverlay = this.createNode('TransitionOverlay', this.node);
     this.transitionOverlay.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
+    this.transitionOverlay.addComponent(BlockInputEvents);
+    this.blockTouchPropagation(this.transitionOverlay);
     const art = this.transitionOverlay.addComponent(Graphics);
-    art.fillColor = new Color(255, 255, 255, 245);
+    art.fillColor = new Color(28, 36, 78, 150);
     art.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight); art.fill();
-    art.fillColor = new Color(245, 87, 108, 80);
-    for (let i = 0; i < 22; i += 1) {
-      const angle = i * 2.399;
-      const radius = 60 + (i % 6) * 68;
-      art.circle(Math.cos(angle) * radius, Math.sin(angle) * radius, 5 + (i % 4) * 3); art.fill();
+    for (let side = -1; side <= 1; side += 2) {
+      const cloud = this.createNode(side < 0 ? 'TransitionCloudLeft' : 'TransitionCloudRight', this.transitionOverlay);
+      cloud.addComponent(UITransform).setContentSize(620, 260);
+      cloud.setPosition(side * (this.viewportWidth * 0.5 + 330), side * 95, 0);
+      const cloudArt = cloud.addComponent(Graphics);
+      cloudArt.fillColor = new Color(255, 255, 255, 225);
+      cloudArt.ellipse(0, 0, 310, 74);
+      cloudArt.ellipse(-145, 45, 150, 100);
+      cloudArt.ellipse(120, 40, 175, 108);
+      cloudArt.fill();
     }
+    const prompt = this.createLabel('TransitionPrompt', this.transitionOverlay, '☁️ 蹦蹦云 · 出发！', 42, Color.WHITE);
+    prompt.node.setPosition(0, -225, 0);
     this.transitionOpacity = this.transitionOverlay.addComponent(UIOpacity);
     this.transitionOpacity.opacity = 0;
     this.transitionOverlay.active = false;
+  }
+
+  private playStartTransition(): void {
+    if (!this.transitionOverlay) return;
+    const left = this.transitionOverlay.getChildByName('TransitionCloudLeft');
+    const right = this.transitionOverlay.getChildByName('TransitionCloudRight');
+    const prompt = this.transitionOverlay.getChildByName('TransitionPrompt');
+    if (this.homeContent && this.homeContentOpacity) {
+      Tween.stopAllByTarget(this.homeContent);
+      Tween.stopAllByTarget(this.homeContentOpacity);
+      tween(this.homeContent)
+        .to(START_TRANSITION_SECONDS * 0.68, { scale: new Vec3(0.94, 0.94, 1) }, { easing: 'sineIn' })
+        .start();
+      tween(this.homeContentOpacity)
+        .to(START_TRANSITION_SECONDS * 0.72, { opacity: 0 }, { easing: 'sineIn' })
+        .start();
+    }
+    if (this.transitionOpacity) {
+      Tween.stopAllByTarget(this.transitionOpacity);
+      tween(this.transitionOpacity)
+        .to(0.16, { opacity: 255 })
+        .delay(START_TRANSITION_SECONDS - 0.32)
+        .to(0.16, { opacity: 0 })
+        .call(() => {
+          this.transitionAnimationReady = true;
+          this.tryEnterGame();
+        })
+        .start();
+    }
+    if (left) {
+      tween(left)
+        .to(0.42, { position: new Vec3(-95, 95, 0) }, { easing: 'quadOut' })
+        .to(0.36, { position: new Vec3(this.viewportWidth * 0.5 + 360, 95, 0) }, { easing: 'quadIn' })
+        .start();
+    }
+    if (right) {
+      tween(right)
+        .to(0.42, { position: new Vec3(95, -95, 0) }, { easing: 'quadOut' })
+        .to(0.36, { position: new Vec3(-this.viewportWidth * 0.5 - 360, -95, 0) }, { easing: 'quadIn' })
+        .start();
+    }
+    if (prompt) {
+      const opacity = prompt.getComponent(UIOpacity) ?? prompt.addComponent(UIOpacity);
+      opacity.opacity = 0;
+      tween(opacity).to(0.18, { opacity: 255 }).delay(0.28).to(0.22, { opacity: 0 }).start();
+    }
+  }
+
+  private tryEnterGame(): void {
+    if (!this.starting || this.sceneLoadRequested || !this.gameSceneReady || !this.transitionAnimationReady) return;
+    this.sceneLoadRequested = true;
+    this.starting = false;
+    SceneNavigator.game();
   }
 
   private share(): void {
@@ -338,7 +432,7 @@ export class HomeSceneBootstrap extends Component {
   }
 
   private createFeatureCard(name: string, icon: string, title: string, desc: string, accent: Color): Node {
-    const card = this.createPanel(name, this.node, 320, 150, new Color(255, 255, 255, 24), 30);
+    const card = this.createPanel(name, this.homeContent ?? this.node, 320, 150, new Color(255, 255, 255, 24), 30);
     card.addComponent(Button);
     const stripe = card.getComponent(Graphics)!; stripe.fillColor = accent; stripe.roundRect(-160, 69, 320, 6, 3); stripe.fill();
     this.createLabel(`${name}Icon`, card, icon, 44, Color.WHITE).node.setPosition(0, 33, 0);
@@ -372,6 +466,16 @@ export class HomeSceneBootstrap extends Component {
     const restore = (): void => node.setScale(base);
     node.on(Node.EventType.TOUCH_END, restore, this);
     node.on(Node.EventType.TOUCH_CANCEL, restore, this);
+  }
+
+  private blockTouchPropagation(node: Node): void {
+    const stop = (event: EventTouch): void => {
+      event.propagationStopped = true;
+    };
+    node.on(Node.EventType.TOUCH_START, stop, this);
+    node.on(Node.EventType.TOUCH_MOVE, stop, this);
+    node.on(Node.EventType.TOUCH_END, stop, this);
+    node.on(Node.EventType.TOUCH_CANCEL, stop, this);
   }
 
   private createLabel(name: string, parent: Node, text: string, size: number, color: Color): Label {

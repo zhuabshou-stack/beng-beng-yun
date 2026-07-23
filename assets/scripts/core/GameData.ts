@@ -27,9 +27,8 @@ export class GameData {
   }
 
   registerLanding(continuesCombo: boolean): number {
-    // HTML 版每次成功落云都直接累加 Combo；只有下落未命中云时才清零。
-    void continuesCombo;
-    this.combo += 1;
+    // 首次或连续落到不同云时累加；重复落回同一朵云会中断连续落云。
+    this.combo = continuesCombo ? this.combo + 1 : 0;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     const scoreGain = 1 + Math.floor(this.combo / 5);
     this.score += scoreGain;
