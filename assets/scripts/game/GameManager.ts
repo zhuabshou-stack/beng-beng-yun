@@ -13,7 +13,7 @@ import { CollectibleType } from './Collectible';
 import { CollectibleManager } from './CollectibleManager';
 import { CloudType } from '../core/GameConfig';
 import { StorageService } from '../platform/StorageService';
-import { DouyinBridge } from '../platform/DouyinBridge';
+import { PlatformService } from '../platform/PlatformService';
 import { AudioManager } from '../core/AudioManager';
 import { ProgressionService } from '../core/ProgressionService';
 const { ccclass, property } = _decorator;
@@ -90,7 +90,7 @@ export class GameManager extends Component {
     input.on(Input.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
     input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
     input.on(Input.EventType.KEY_UP, this.onKeyUp, this);
-    DouyinBridge.onHide(this.handleAppHide);
+    PlatformService.onHide(this.handleAppHide);
   }
 
   start(): void {
@@ -119,7 +119,7 @@ export class GameManager extends Component {
     input.off(Input.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
     input.off(Input.EventType.KEY_DOWN, this.onKeyDown, this);
     input.off(Input.EventType.KEY_UP, this.onKeyUp, this);
-    DouyinBridge.offHide(this.handleAppHide);
+    PlatformService.offHide(this.handleAppHide);
   }
 
   startRun(): void {
@@ -362,7 +362,7 @@ export class GameManager extends Component {
         position: new Vec3(px, top, 0),
       });
       this.checkProgressFeedback();
-      DouyinBridge.vibrateShort();
+      PlatformService.vibrateShort();
       return true;
     }
     return false;

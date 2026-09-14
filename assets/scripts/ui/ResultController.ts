@@ -1,7 +1,7 @@
 import { _decorator, Component, Label } from 'cc';
 import { GameManager } from '../game/GameManager';
 import { SceneFlow } from './SceneFlow';
-import { DouyinBridge } from '../platform/DouyinBridge';
+import { PlatformService } from '../platform/PlatformService';
 const { ccclass, property } = _decorator;
 
 @ccclass('ResultController')
@@ -26,5 +26,5 @@ export class ResultController extends Component {
   }
 
   home(): void { this.flow?.show('home'); }
-  share(): void { DouyinBridge.share(`我在蹦蹦云跳到了 ${Math.floor(this.gameManager?.data.score ?? 0)} 分！`); }
+  share(): void { PlatformService.share(`我在蹦蹦云跳到了 ${Math.floor(this.gameManager?.data.score ?? 0)} 分！`); }
 }

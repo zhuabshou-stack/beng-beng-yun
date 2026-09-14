@@ -1,12 +1,12 @@
 import {
   _decorator, BlockInputEvents, Button, Camera, Color, Component, EventTouch, Graphics,
-  HorizontalTextAlignment, Label, Node, Sprite, SpriteFrame, Tween, UIOpacity, UITransform,
-  Vec3, VerticalTextAlignment, math, tween, view,
+  HorizontalTextAlignment, input, Input, Label, Node, Sprite, SpriteFrame, Tween, UIOpacity,
+  UITransform, Vec3, VerticalTextAlignment, math, tween, view,
 } from 'cc';
 import { AudioManager } from '../core/AudioManager';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
-import { DouyinBridge } from '../platform/DouyinBridge';
+import { PlatformService } from '../platform/PlatformService';
 import { StorageService } from '../platform/StorageService';
 import { SceneNavigator } from './SceneNavigator';
 const { ccclass, property } = _decorator;
@@ -41,6 +41,8 @@ export class HomeSceneBootstrap extends Component {
   private viewportHeight = 1920;
   private readonly particles: HomeParticle[] = [];
   private readonly clouds: HomeCloud[] = [];
+  // 浏览器端自动播放受限：进入主页先尝试播 BGM，并把首次任意输入作为播放兜底时机。
+  private readonly handleAudioUnlock = (): void => AudioManager.startMusic();
 
   onLoad(): void {
     this.darkMode = StorageService.getJSON<boolean>(HOME_DARK_MODE_KEY, true) !== false;
@@ -52,10 +54,18 @@ export class HomeSceneBootstrap extends Component {
     if (camera) camera.orthoHeight = visible.height * 0.5;
     this.buildBackground();
     this.buildHome();
+    input.on(Input.EventType.TOUCH_START, this.handleAudioUnlock);
+    input.on(Input.EventType.KEY_DOWN, this.handleAudioUnlock);
   }
 
   onEnable(): void {
     this.refreshCoins();
+    AudioManager.startMusic();
+  }
+
+  protected onDestroy(): void {
+    input.off(Input.EventType.TOUCH_START, this.handleAudioUnlock);
+    input.off(Input.EventType.KEY_DOWN, this.handleAudioUnlock);
   }
 
   update(dt: number): void {
@@ -423,8 +433,8 @@ export class HomeSceneBootstrap extends Component {
   }
 
   private share(): void {
-    DouyinBridge.share(`蹦蹦云 | 我的最高分是 ${StorageService.getNumber('cloudBounceBest', 0)} 分！`);
-    if (this.statusLabel) this.statusLabel.string = DouyinBridge.isDouyin ? '已打开分享入口' : '分享功能将在抖音环境启用';
+    PlatformService.share(`蹦蹦云 | 我的最高分是 ${StorageService.getNumber('cloudBounceBest', 0)} 分！`);
+    if (this.statusLabel) this.statusLabel.string = PlatformService.platform === 'web' ? '分享功能将在小游戏环境启用' : '已打开分享入口';
   }
 
   private refreshCoins(): void {

@@ -9,7 +9,7 @@ import { DisplaySettings } from '../core/DisplaySettings';
 import { AudioManager } from '../core/AudioManager';
 import { CameraRig } from '../game/CameraRig';
 import { GameManager } from '../game/GameManager';
-import { DouyinBridge } from '../platform/DouyinBridge';
+import { PlatformService } from '../platform/PlatformService';
 const { ccclass } = _decorator;
 
 export interface HUDFrames {
@@ -200,7 +200,7 @@ export class DreamyHUD extends Component {
     this.lastWidth = width;
     this.lastHeight = height;
     const scale = DisplaySettings.getUiScale();
-    const safe = DouyinBridge.getSafeAreaInsets(width, height);
+    const safe = PlatformService.getSafeAreaInsets(width, height);
     const halfWidth = width * 0.5 / scale;
     const halfHeight = height * 0.5 / scale;
     const top = halfHeight - safe.top / scale - 62;

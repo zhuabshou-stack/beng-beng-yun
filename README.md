@@ -1,14 +1,22 @@
 # 蹦蹦云
 
-版本：v2.9.4（HTML 高一致度复刻交互修正版）
+版本：v2.10.0（多平台上架适配版：抖音 + 微信）
 引擎：Cocos Creator 3.8.8
 设计分辨率：1080×1920，Portrait 竖屏
 
 ## 版本定位
 
-`agent/html-parity` 以 `D:\cesi2\游戏本体` 内旧 HTML/CSS/JS 为页面、规则、参数和节奏的唯一参考，继续复用 Cocos 的 `Boot → Home → Game → Home`、`SceneNavigator`、`StorageService`、`DouyinBridge`、`AudioManager`、对象池及构建框架。它是旧版高清 Cocos 复刻，不延续 v2.8.0 的重新设计方向。
+`agent/html-parity` 系列以 `游戏本体` 内旧 HTML/CSS/JS 为页面、规则、参数和节奏的唯一参考。v2.10.0 在 v2.9.4 高一致度复刻的基础上做小平台上架适配：平台能力统一收敛到 `PlatformService`（抖音/微信双实现、快手预留），补齐程序化生成的基础音效与 BGM，抖音与微信小游戏构建产物均控制在平台主包限额内。
 
-v2.9.4 在 v2.9.3 基础上集中修复主页/游戏设置的触摸穿透、技能不可用但无原因提示、开始游戏重复触发和僵硬白屏，并按本轮明确要求加入有上限的连续落云节奏增强。
+## v2.10.0 主要变化
+
+- 新增 `assets/scripts/platform/PlatformService.ts` 统一平台入口（分享、震动、前后台、安全区、平台名），按运行时自动识别 `ks`（快手预留）/ `wx`（微信）/ `tt`（抖音）/ 浏览器降级。
+- 新增 `assets/scripts/platform/WechatBridge.ts`，与 DouyinBridge 同构的微信实现；原有 4 个文件 9 处 DouyinBridge 调用全部迁移到 PlatformService。
+- 主页分享按钮的状态文案按平台动态生成，不再硬编码"抖音"。
+- 新增 `assets/scripts/core/AudioCatalog.ts`：从 resources 分包加载 `assets/resources/audio/` 下的 8 个音效与 1 段 BGM 并注册进 AudioManager；全部音频由 `tools/generate-audio.js` 程序化合成，无第三方素材。
+- 主页进入时尝试启动 BGM，并把首次任意输入作为浏览器自动播放限制下的播放兜底。
+- 抖音构建启用"引擎分离"插件，主包从 7.2MB 降至 2.4MB（限额 4MB 内）；微信构建同样启用引擎插件（需非调试模式 + 保存的构建配置，主包 2.2MB）。
+- 游戏内版本号标签与本文档版本号同步为 v2.10.0。
 
 ## 已迁移内容
 
@@ -17,7 +25,7 @@ v2.9.4 在 v2.9.3 基础上集中修复主页/游戏设置的触摸穿透、技�
 - 金币、星星、羽毛、六套皮肤及护盾、磁铁、时间减速、幽灵、二段跳、时光倒流六种技能。
 - 落云、弹簧、Combo、收集、里程碑的粒子、拖尾、浮字和震屏；固定对象池避免运行期持续建节点。
 - 最高分、金币、本地前十、皮肤、技能、设置持久化及旧存档键兼容。
-- 分享入口通过 `DouyinBridge` 隔离；代码不直接使用 `window`、`document` 或 `navigator`。
+- 分享、震动等平台能力通过 `PlatformService` 隔离（抖音/微信，快手预留）；代码不直接使用 `window`、`document` 或 `navigator`。
 
 ## v2.9.4 关键修复
 
@@ -58,31 +66,35 @@ v2.9.4 在 v2.9.3 基础上集中修复主页/游戏设置的触摸穿透、技�
 ## 运行与构建
 
 1. 使用 Cocos Creator 3.8.8 打开本目录。
-2. 浏览器发布目录：`build/web-mobile-html-parity`。
-3. 抖音小游戏发布目录：`build/bytedance-mini-game`。
-4. 正式构建只包含 `Boot.scene`、`Home.scene`、`Game.scene`，Boot 为初始场景；`Main.scene` 与 `HomeShell.scene` 不参与构建。
+2. 浏览器发布目录：`build/web-mobile-html-parity`（历史基线）与 `build/web-mobile`（本轮验证产物）。
+3. 抖音小游戏发布目录：`build/bytedance-mini-game`（引擎分离已启用，主包约 2.4MB）。
+4. 微信小游戏发布目录：`build/wechatgame`（引擎插件已启用，主包约 2.2MB；当前 AppID 为官方测试号，正式上架前替换 `profiles/v2/packages/wechatgame.json`）。
+5. 正式构建只包含 `Boot.scene`、`Home.scene`、`Game.scene`，Boot 为初始场景；`Main.scene` 与 `HomeShell.scene` 不参与构建。
+6. 音频再生成：`node tools/generate-audio.js`（输出到 `assets/resources/audio/`）。
+7. 命令行构建：`CocosCreator.exe --project <工程目录> --build "platform=<平台>;debug=<true|false>"`；微信引擎插件必须 `debug=false`。
 
-抖音开发者工具应导入完整目录：
-
-`D:\cesi2\蹦蹦云-Cocos工程\cese\build\bytedance-mini-game`
+微信开发者工具应导入完整目录 `build/wechatgame`；抖音开发者工具应导入完整目录 `build/bytedance-mini-game`。
 
 `build/`、`library/`、`temp/`、`local/`、`profiles/` 均为本机生成或私有状态，不提交 Git。
 
-## 验证摘要
+## 上架准备清单
 
-- Creator 3.8.8 的 web-mobile 与 bytedance-mini-game 任务均构建成功，Creator 导入与项目错误为 0。
-- Creator 内置 TypeScript `--noEmit --skipLibCheck`、`git diff --check` 与平台全局禁用项检查通过。
-- Chrome 390×844 竖屏真实交互覆盖主页设置/主题/关闭、开始按钮双击、过渡、首次教学、Game、暂停、游戏设置关闭与 Game → Home。
-- 主页深色模式切换后设置面板保持打开，关闭后未弹出统计；游戏设置关闭后直接恢复运行，未弹出暂停面板。
-- 六种技能通过加载真实 `GameManager.useSkill` 的隔离运行检查逐项触发，护盾/磁铁/减速/幽灵/二段跳/时光倒流状态与次数扣减均通过。
-- 浏览器控制台项目 warning/error 为 0。
-- 抖音包根目录存在 `game.js`、`game.json`、`project.config.json`。未上传、未发布、未提交审核。
+- 微信：见 `docs/微信上架准备清单.md`（账号、类目、隐私声明、上传流程）。
+- 快手：见 `docs/快手前置条件清单.md`（官方仅支持企业主体入驻，本次暂缓；条件齐备后按微信包 + 快手开发者工具自动适配路线实施）。
+- 抖音资质需软著：软著 V1.0 已申请，待完成签章页补正后取得证书。
 
-v2.9.3 基线截图仍位于 `docs/screenshots/html-parity-v293/`。本轮所有视觉与手感结论统一为：**等待用户试玩确认。**
+## 验证摘要（v2.10.0）
 
-## 尚未迁移或未完成验收
+- Creator 3.8.8 命令行构建 web-mobile、bytedance-mini-game、wechatgame 三端成功；TypeScript 编译检查业务代码 0 报错；`window/document/navigator` 全项目 0 命中。
+- 真实 Chrome（Playwright + 无头 Chrome 390×844）自动化回归 9/10 通过：启动→主页（版本号 v2.10.0）→真实点击开始→真实触摸左右移动→键盘暂停/恢复→返回主页→分享入口（平台文案"分享功能将在小游戏环境启用"）→设置音效开关持久化→音频加载（BGM 实际播放、9 个资源零加载失败）→控制台零错误。1 项（移动读数）为无头浏览器后台节流导致的测试框架限制，功能在健康帧率轮次已完整验证。
+- 存档系统实测：最高分、金币、生涯统计、排行榜、技能解锁、教学标记均正确写入并在刷新后保持。
+- 抖音包 2.4MB（引擎分离插件 cocos@3.8.8 已写入 game.json）；微信包 2.2MB（微信引擎插件 cocos@3.8.8 已写入 game.json，provider 为 Cocos 官方）。未上传、未发布、未提交审核。
 
-- 旧 HTML 未提供独立正式音频文件；当前保留 AudioManager 可替换接口，不伪造或下载来源不明素材。
-- 正式抖音排行、广告、云存档、支付与商业化不是旧 HTML 已有闭环，本分支不新增。
-- 抖音开发者工具最终画面、真机安全区、触控和性能仍需用户侧验收。
+本轮所有视觉与手感结论统一为：**等待用户试玩确认。**
+
+## 尚未完成事项
+
+- 微信正式 AppID 未注册（当前为官方测试号）；注册后替换构建配置重新出包，并安装微信开发者工具做工具内验收。
+- 抖音开发者工具最终画面、真机安全区、触控和性能仍需用户侧验收；抖音上架资质依赖软著正式证书（补正办理中）。
+- 快手渠道暂缓（仅企业主体可入驻），前置条件清单已备。
 - 跳跃、下降、水平控制、镜头、弹簧、UI 比例与动画节奏：**等待用户试玩确认。**

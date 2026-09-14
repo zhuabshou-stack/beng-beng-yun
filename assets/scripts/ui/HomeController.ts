@@ -1,7 +1,7 @@
 import { _decorator, Component, Label } from 'cc';
 import { SceneFlow } from './SceneFlow';
 import { GameManager } from '../game/GameManager';
-import { DouyinBridge } from '../platform/DouyinBridge';
+import { PlatformService } from '../platform/PlatformService';
 const { ccclass, property } = _decorator;
 
 @ccclass('HomeController')
@@ -24,5 +24,5 @@ export class HomeController extends Component {
   openRank(): void { this.flow?.show('rank'); }
   openStats(): void { this.flow?.show('stats'); }
   openSettings(): void { this.flow?.show('settings'); }
-  share(): void { DouyinBridge.share(); }
+  share(): void { PlatformService.share(); }
 }

@@ -3,6 +3,7 @@ import {
   Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math, view,
 } from 'cc';
 import { GAME } from '../core/GameConfig';
+import { AudioCatalog } from '../core/AudioCatalog';
 import { SceneNavigator } from './SceneNavigator';
 const { ccclass, property } = _decorator;
 
@@ -45,6 +46,7 @@ export class BootSceneBootstrap extends Component {
   }
 
   start(): void {
+    AudioCatalog.preload();
     SceneNavigator.preload('Home', (progress) => { this.loadProgress = progress; }, () => { this.ready = true; });
   }
 
