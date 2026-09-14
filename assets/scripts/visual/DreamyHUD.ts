@@ -10,6 +10,7 @@ import { AudioManager } from '../core/AudioManager';
 import { CameraRig } from '../game/CameraRig';
 import { GameManager } from '../game/GameManager';
 import { PlatformService } from '../platform/PlatformService';
+import { UiKit } from '../ui/UiKit';
 const { ccclass } = _decorator;
 
 export interface HUDFrames {
@@ -121,20 +122,27 @@ export class DreamyHUD extends Component {
   private build(frames: HUDFrames): void {
     this.node.removeAllChildren();
     const scoreChip = this.createNode('ScoreChip', this.node);
-    this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 44, new Color(255, 255, 255, 255));
+    this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 62, new Color(255, 255, 255, 255));
+    UiKit.styleLabel(this.scoreLabel, { shadowColor: UiKit.HUD_TEXT_SHADOW });
     this.scoreLabel.node.setPosition(0, 2, 0);
-    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 20, new Color(255, 255, 255, 155));
-    this.bestLabel.node.setPosition(0, -42, 0);
+    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 30, new Color(255, 255, 255, 155));
+    UiKit.styleLabel(this.bestLabel, { shadowColor: new Color(0, 0, 0, 77) });
+    this.bestLabel.node.setPosition(0, -58, 0);
 
     const coinChip = this.createNode('CoinChip', this.node);
     this.createIcon('CoinIcon', coinChip, frames.coinIcon, 'coin');
-    this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 30, new Color(255, 235, 151, 255));
-    this.coinLabel.node.setPosition(36, 0, 0);
+    // HTML §4：金币计数 #ffd700 加粗
+    this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 40, new Color(255, 215, 0, 255));
+    UiKit.styleLabel(this.coinLabel, { shadowColor: UiKit.HUD_TEXT_SHADOW });
+    this.coinLabel.node.setPosition(46, 0, 0);
 
-    const statsChip = this.createGlassPanel('RunStatsChip', 330, 54, 0.10);
-    this.statsLabel = this.createLabel('RunStatsLabel', statsChip, '高度 0m    ⭐ 0', 20, new Color(241, 245, 255, 225));
+    const statsChip = this.createGlassPanel('RunStatsChip', 420, 62, 0.10);
+    this.statsLabel = this.createLabel('RunStatsLabel', statsChip, '高度 0m    ⭐ 0', 28, new Color(241, 245, 255, 225));
+    UiKit.styleLabel(this.statsLabel, { shadowColor: new Color(0, 0, 0, 77) });
 
-    this.comboLabel = this.createLabel('ComboLabel', this.node, 'COMBO 2', 34, new Color(255, 191, 126, 255));
+    // HTML §4：连击 #ff6b6b + 红色文字阴影
+    this.comboLabel = this.createLabel('ComboLabel', this.node, 'COMBO 2', 40, new Color(255, 107, 107, 255));
+    UiKit.styleLabel(this.comboLabel, { shadowColor: UiKit.COMBO_SHADOW });
     this.comboLabel.node.active = false;
 
     this.skillBar = this.createNode('SkillBar', this.node);
@@ -150,7 +158,8 @@ export class DreamyHUD extends Component {
     const progressPanel = this.createGlassPanel('LevelProgressBar', 650, 84, 0.3);
     const progressNode = this.createNode('ProgressFill', progressPanel);
     this.progressGraphics = progressNode.addComponent(Graphics);
-    this.progressLabel = this.createLabel('ProgressLabel', progressPanel, '云端旅程  0/200', 22, new Color(255, 255, 255, 225));
+    this.progressLabel = this.createLabel('ProgressLabel', progressPanel, '云端旅程  0/200', 26, new Color(255, 255, 255, 225));
+    UiKit.styleLabel(this.progressLabel, { shadowColor: new Color(0, 0, 0, 102) });
     this.progressLabel.node.setPosition(0, 17, 0);
     const versionLabel = this.createLabel('VersionLabel', this.node, `v${GAME.version}`, 16, new Color(255, 255, 255, 115));
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
@@ -203,15 +212,15 @@ export class DreamyHUD extends Component {
     const safe = PlatformService.getSafeAreaInsets(width, height);
     const halfWidth = width * 0.5 / scale;
     const halfHeight = height * 0.5 / scale;
-    const top = halfHeight - safe.top / scale - 62;
-    this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 62, top, 0);
-    this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 142, top, 0);
-    this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 222, top, 0);
-    this.node.getChildByName('ScoreChip')?.setPosition(0, top - 5, 0);
-    this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 100, top, 0);
-    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 102, 0);
-    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 158, 0);
-    this.skillBar?.setPosition(halfWidth - safe.right / scale - 48, top - 104, 0);
+    const top = halfHeight - safe.top / scale - 80;
+    this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 80, top, 0);
+    this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 195, top, 0);
+    this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 310, top, 0);
+    this.node.getChildByName('ScoreChip')?.setPosition(0, top - 12, 0);
+    this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 130, top, 0);
+    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 140, 0);
+    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 205, 0);
+    this.skillBar?.setPosition(halfWidth - safe.right / scale - 80, top - 150, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);
     this.pauseOverlay?.getComponent(UITransform)?.setContentSize(width / scale, height / scale);
@@ -225,14 +234,14 @@ export class DreamyHUD extends Component {
     if (!graphics) return;
     const width = 570;
     graphics.clear();
-    graphics.fillColor = new Color(255, 255, 255, 48);
+    // HTML §4：轨道白 30%、填充 #f093fb→#ffd166 渐变、金色端点
+    graphics.fillColor = new Color(255, 255, 255, 77);
     graphics.roundRect(-width * 0.5, -21, width, 13, 7);
     graphics.fill();
     if (progress > 0) {
-      graphics.fillColor = new Color(242, 147, 251, 255);
-      graphics.roundRect(-width * 0.5, -21, width * progress, 13, 7);
-      graphics.fill();
-      graphics.fillColor = new Color(255, 220, 130, 180);
+      const fillWidth = width * progress;
+      UiKit.fillRoundedHorizontalGradient(graphics, -width * 0.5 + fillWidth * 0.5, -14.5, fillWidth, 13, 7, UiKit.PROGRESS_GRADIENT);
+      graphics.fillColor = new Color(255, 209, 102, 255);
       graphics.circle(-width * 0.5 + width * progress, -14.5, 8);
       graphics.fill();
     }
@@ -250,8 +259,8 @@ export class DreamyHUD extends Component {
     const bonus = Math.floor(combo / 5);
     label.string = bonus > 0 ? `🔥 ${combo} 连击   +${bonus}` : `🔥 ${combo} 连击`;
     label.fontSize = combo >= 10 ? 42 : combo >= 5 ? 38 : 34;
-    label.color = combo >= 10 ? new Color(255, 225, 112, 255)
-      : combo >= 5 ? new Color(255, 170, 128, 255) : new Color(255, 205, 156, 255);
+    label.color = combo >= 10 ? new Color(255, 215, 0, 255)
+      : combo >= 5 ? new Color(255, 138, 128, 255) : new Color(255, 107, 107, 255);
     Tween.stopAllByTarget(label.node);
     label.node.setScale(0.86, 0.86, 1);
     tween(label.node).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
@@ -334,18 +343,18 @@ export class DreamyHUD extends Component {
       if (!data[id].owned) return;
       const definition = SKILLS.find((skill) => skill.id === id);
       if (!definition) return;
-      const button = this.createGlassPanel(`Skill_${id}`, 76, 76, 0.38);
+      const button = this.createGlassPanel(`Skill_${id}`, 110, 110, 0.38);
       button.parent = this.skillBar;
-      button.setPosition(-index * 88, 0, 0);
+      button.setPosition(-index * 124, 0, 0);
       const buttonComponent = button.addComponent(Button);
       this.skillButtons.set(id, buttonComponent);
-      this.createLabel(`SkillIcon_${id}`, button, definition.icon, 31, Color.WHITE).node.setPosition(0, 10, 0);
+      this.createLabel(`SkillIcon_${id}`, button, definition.icon, 42, Color.WHITE).node.setPosition(0, 14, 0);
       const key = SKILLS.findIndex((skill) => skill.id === id) + 1;
-      const keyLabel = this.createLabel(`SkillKey_${id}`, button, `${key}`, 13, new Color(255, 255, 255, 135));
+      const keyLabel = this.createLabel(`SkillKey_${id}`, button, `${key}`, 16, new Color(255, 255, 255, 135));
       keyLabel.node.getComponent(UITransform)?.setContentSize(24, 24);
-      keyLabel.node.setPosition(25, 25, 0);
-      const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 14, new Color(255, 215, 0, 255));
-      label.node.setPosition(0, -24, 0);
+      keyLabel.node.setPosition(38, 38, 0);
+      const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 18, new Color(255, 215, 0, 255));
+      label.node.setPosition(0, -34, 0);
       this.skillLabels.set(id, label);
       button.on(Button.EventType.CLICK, () => this.gameManager?.useSkill(id), this);
       this.addPressFeedback(button);
@@ -400,7 +409,7 @@ export class DreamyHUD extends Component {
   }
 
   private createGlassButton(name: string, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'settings'): Node {
-    const node = this.createGlassPanel(name, 66, 66, 0.28);
+    const node = this.createGlassPanel(name, 100, 100, 0.28);
     node.addComponent(Button);
     this.createIcon(`${name}Icon`, node, frame, kind);
     this.addPressFeedback(node);
@@ -410,12 +419,14 @@ export class DreamyHUD extends Component {
   private createIcon(name: string, parent: Node, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'coin' | 'settings'): Node {
     const node = this.createNode(name, parent);
     const transform = node.addComponent(UITransform);
-    transform.setContentSize(42, 42);
+    transform.setContentSize(60, 60);
     if (frame) {
       const sprite = node.addComponent(Sprite);
       sprite.spriteFrame = frame;
       return node;
     }
+    // 矢量图形按 60px 容器等比放大绘制（原尺寸按 42px 设计）
+    node.setScale(1.42, 1.42, 1);
     const graphics = node.addComponent(Graphics);
     graphics.strokeColor = kind === 'coin' ? new Color(255, 224, 105, 255) : Color.WHITE;
     graphics.fillColor = graphics.strokeColor;

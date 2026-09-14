@@ -9,6 +9,7 @@ import { LegacyProgression } from '../core/LegacyProgression';
 import { PlatformService } from '../platform/PlatformService';
 import { StorageService } from '../platform/StorageService';
 import { SceneNavigator } from './SceneNavigator';
+import { UiKit } from './UiKit';
 const { ccclass, property } = _decorator;
 
 interface HomeParticle { node: Node; phase: number; speed: number; }
@@ -89,11 +90,20 @@ export class HomeSceneBootstrap extends Component {
   private buildHome(): void {
     this.homeContent = this.createNode('HomeContent', this.node);
     this.homeContentOpacity = this.homeContent.addComponent(UIOpacity);
-    const topCoin = this.createPanel('CoinBadge', this.homeContent, 180, 70, new Color(0, 0, 0, 82), 35);
-    topCoin.setPosition(-430, 865, 0);
-    this.coinLabel = this.createLabel('CoinCount', topCoin, '💰 0', 29, new Color(255, 215, 0, 255));
-    const settings = this.createButton('SettingsButton', this.homeContent, '⚙', 70, 70, new Color(255, 255, 255, 38), 31, 35);
-    settings.setPosition(450, 865, 0);
+    const topCoin = this.createPanel('CoinBadge', this.homeContent, 240, 86, new Color(0, 0, 0, 82), 43);
+    topCoin.setPosition(-440, 880, 0);
+    // HTML §2.2：金币徽章金色描边 + 金字
+    const coinBorder = topCoin.getComponent(Graphics);
+    if (coinBorder) {
+      coinBorder.strokeColor = new Color(255, 215, 0, 51);
+      coinBorder.lineWidth = 3;
+      coinBorder.roundRect(-117, -40, 234, 80, 40);
+      coinBorder.stroke();
+    }
+    this.coinLabel = this.createLabel('CoinCount', topCoin, '💰 0', 34, new Color(255, 215, 0, 255));
+    UiKit.styleLabel(this.coinLabel, { shadowColor: new Color(0, 0, 0, 102) });
+    const settings = this.createButton('SettingsButton', this.homeContent, '⚙', 80, 80, new Color(255, 255, 255, 38), 40, 38);
+    settings.setPosition(450, 880, 0);
     settings.on(Button.EventType.CLICK, () => this.openSettings(), this);
 
     const logo = this.createNode('LogoArea', this.homeContent);
@@ -108,33 +118,92 @@ export class HomeSceneBootstrap extends Component {
       const icon = this.createLabel('LogoCloud', logo, '☁️', 96, Color.WHITE);
       icon.node.setPosition(0, 96, 0);
     }
-    this.createLabel('GameTitle', logo, '蹦蹦云', 82, Color.WHITE).node.setPosition(0, 5, 0);
+    const gameTitle = this.createLabel('GameTitle', logo, '蹦蹦云', 82, Color.WHITE);
+    UiKit.styleLabel(gameTitle, { shadowColor: new Color(0, 0, 0, 77) });
+    gameTitle.node.setPosition(0, 5, 0);
     this.createLabel('Subtitle', logo, '向上跳跃，收集星光 ✨', 28, new Color(255, 255, 255, 190)).node.setPosition(0, -67, 0);
     this.createLabel('TapHint', logo, '点击下方按钮开始冒险', 20, new Color(255, 255, 255, 92)).node.setPosition(0, -112, 0);
 
-    const start = this.createButton('StartButton', this.homeContent, '🚀  开始游戏', 660, 100, new Color(245, 87, 108, 255), 36, 44);
+    const start = this.createStartButton();
     start.setPosition(0, 310, 0);
     start.on(Button.EventType.CLICK, this.startGame, this);
     this.startButton = start.getComponent(Button);
 
-    const entries: Array<{ name: string; icon: string; label: string; desc: string; action: () => void; accent: Color }> = [
-      { name: 'SkinCard', icon: '🎨', label: '皮肤', desc: '更换角色外观', action: () => this.openSkins(), accent: new Color(79, 172, 254, 255) },
-      { name: 'RankCard', icon: '🏆', label: '排行榜', desc: '查看最高分', action: () => this.openRanking(), accent: new Color(255, 190, 40, 255) },
-      { name: 'SkillCard', icon: '⚡', label: '技能商店', desc: '购买强力技能', action: () => this.openSkills(), accent: new Color(176, 137, 219, 255) },
-      { name: 'StatsCard', icon: '📊', label: '我的统计', desc: '查看游戏数据', action: () => this.openStats(), accent: new Color(120, 120, 220, 255) },
-      { name: 'SettingsCard', icon: '🔧', label: '设置', desc: '音效与选项', action: () => this.openSettings(), accent: new Color(102, 166, 255, 255) },
-      { name: 'ShareCard', icon: '📱', label: '分享', desc: '邀请好友挑战', action: () => this.share(), accent: new Color(67, 233, 123, 255) },
+    const entries: Array<{ name: string; icon: string; label: string; desc: string; action: () => void; accent: readonly [string, string] }> = [
+      { name: 'SkinCard', icon: '🎨', label: '皮肤', desc: '更换角色外观', action: () => this.openSkins(), accent: UiKit.CARD_ACCENTS.skin },
+      { name: 'RankCard', icon: '🏆', label: '排行榜', desc: '查看最高分', action: () => this.openRanking(), accent: UiKit.CARD_ACCENTS.rank },
+      { name: 'SkillCard', icon: '⚡', label: '技能商店', desc: '购买强力技能', action: () => this.openSkills(), accent: UiKit.CARD_ACCENTS.skill },
+      { name: 'StatsCard', icon: '📊', label: '我的统计', desc: '查看游戏数据', action: () => this.openStats(), accent: UiKit.CARD_ACCENTS.stats },
+      { name: 'SettingsCard', icon: '🔧', label: '设置', desc: '音效与选项', action: () => this.openSettings(), accent: UiKit.CARD_ACCENTS.settings },
+      { name: 'ShareCard', icon: '📱', label: '分享', desc: '邀请好友挑战', action: () => this.share(), accent: UiKit.CARD_ACCENTS.share },
     ];
     entries.forEach((entry, index) => {
       const card = this.createFeatureCard(entry.name, entry.icon, entry.label, entry.desc, entry.accent);
-      card.setPosition(index % 2 === 0 ? -170 : 170, 140 - Math.floor(index / 2) * 175, 0);
+      card.setPosition(index % 2 === 0 ? -262 : 262, 120 - Math.floor(index / 2) * 265, 0);
       card.on(Button.EventType.CLICK, entry.action, this);
     });
 
-    this.statusLabel = this.createLabel('HomeStatus', this.homeContent, '👆 按住屏幕左侧或右侧移动', 22, new Color(255, 255, 255, 175));
-    this.statusLabel.node.setPosition(0, -620, 0);
-    this.createLabel('Version', this.homeContent, `v${GAME.version} · HTML 高清复刻`, 18, new Color(255, 255, 255, 76)).node.setPosition(0, -850, 0);
+    this.statusLabel = this.createLabel('HomeStatus', this.homeContent, '👆 按住屏幕左侧或右侧移动', 24, new Color(255, 255, 255, 175));
+    this.statusLabel.node.setPosition(0, -700, 0);
+    this.createLabel('Version', this.homeContent, `v${GAME.version} · HTML 高清复刻`, 18, new Color(255, 255, 255, 76)).node.setPosition(0, -870, 0);
+    this.playHomeEntrance();
     this.buildTransitionOverlay();
+  }
+
+  // 开始按钮：HTML §2.4 三段渐变 + 外发光投影 + 常驻呼吸光晕 + 按下 0.97
+  private createStartButton(): Node {
+    const node = this.createNode('StartButton', this.homeContent);
+    node.addComponent(UITransform).setContentSize(1000, 130);
+    const glow = this.createNode('StartGlow', node);
+    const glowArt = glow.addComponent(Graphics);
+    for (let layer = 3; layer >= 1; layer -= 1) {
+      glowArt.fillColor = new Color(240, 147, 251, Math.round(30 / layer));
+      const grow = layer * 12;
+      glowArt.roundRect(-500 - grow, -65 - grow, 1000 + grow * 2, 130 + grow * 2, 52 + grow);
+      glowArt.fill();
+    }
+    const glowOpacity = glow.addComponent(UIOpacity);
+    tween(glowOpacity).repeatForever(tween().to(1.25, { opacity: 90 }).to(1.25, { opacity: 255 })).start();
+    const background = this.createNode('StartBackground', node);
+    const art = background.addComponent(Graphics);
+    UiKit.drawDropShadow(art, 1000, 130, 40, 18, 110);
+    UiKit.fillRoundedVerticalGradient(art, 1000, 130, 40, UiKit.START_GRADIENT);
+    art.strokeColor = new Color(255, 255, 255, 51);
+    art.lineWidth = 3;
+    art.roundRect(-497, -62, 994, 124, 38);
+    art.stroke();
+    const label = UiKit.label(node, 'StartButtonLabel', '🚀  开始游戏', 52, Color.WHITE, { shadowColor: new Color(0, 0, 0, 77) });
+    label.node.setPosition(0, 0, 0);
+    node.addComponent(Button);
+    UiKit.pressFeedback(node, 0.97);
+    return node;
+  }
+
+  // 入场：logo 落下淡入 + 卡片依次浮现（HTML floatUp / cardIn 的等价物）
+  private playHomeEntrance(): void {
+    const content = this.homeContent;
+    if (!content) return;
+    const logo = content.getChildByName('LogoArea');
+    if (logo) {
+      const logoTarget = logo.position.clone();
+      logo.setPosition(logoTarget.x, logoTarget.y - 30, 0);
+      const logoOpacity = logo.addComponent(UIOpacity);
+      logoOpacity.opacity = 0;
+      tween(logoOpacity).to(1, { opacity: 255 }).start();
+      tween(logo).to(1, { position: logoTarget }, { easing: 'cubicOut' }).start();
+    }
+    const cards = ['SkinCard', 'RankCard', 'SkillCard', 'StatsCard', 'SettingsCard', 'ShareCard'];
+    cards.forEach((name, index) => {
+      const card = content.getChildByName(name);
+      if (!card) return;
+      const target = card.position.clone();
+      card.setPosition(target.x, target.y - 20, 0);
+      card.setScale(0.95, 0.95, 1);
+      const opacity = card.addComponent(UIOpacity);
+      opacity.opacity = 0;
+      tween(opacity).delay(0.15 + index * 0.08).to(0.45, { opacity: 255 }).start();
+      tween(card).delay(0.15 + index * 0.08).to(0.45, { position: target, scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+    });
   }
 
   private buildBackground(): void {
@@ -170,18 +239,10 @@ export class HomeSceneBootstrap extends Component {
   private redrawHomeGradient(): void {
     const graphics = this.homeBackground;
     if (!graphics) return;
-    graphics.clear();
     const colors = this.darkMode
       ? [new Color(15, 12, 41), new Color(48, 43, 99), new Color(36, 36, 62)]
       : [new Color(91, 134, 229), new Color(126, 175, 236), new Color(177, 210, 238)];
-    for (let i = 0; i < 48; i += 1) {
-      const t = i / 47;
-      const segment = Math.min(1, Math.floor(t * 2));
-      const local = t * 2 - segment;
-      graphics.fillColor = this.mix(colors[segment], colors[segment + 1], local);
-      const bandHeight = this.viewportHeight / 48;
-      graphics.rect(-this.viewportWidth * 0.5, this.viewportHeight * 0.5 - (i + 1) * bandHeight, this.viewportWidth, bandHeight + 2); graphics.fill();
-    }
+    UiKit.fillVerticalGradient(graphics, this.viewportWidth, this.viewportHeight, colors, 128);
   }
 
   private openSkins(): void {
@@ -441,13 +502,15 @@ export class HomeSceneBootstrap extends Component {
     if (this.coinLabel) this.coinLabel.string = `💰 ${StorageService.getNumber('cloudBounceCoins', 0)}`;
   }
 
-  private createFeatureCard(name: string, icon: string, title: string, desc: string, accent: Color): Node {
-    const card = this.createPanel(name, this.homeContent ?? this.node, 320, 150, new Color(255, 255, 255, 24), 30);
+  private createFeatureCard(name: string, icon: string, title: string, desc: string, accent: readonly [string, string]): Node {
+    const card = this.createPanel(name, this.homeContent ?? this.node, 500, 230, UiKit.CARD_BACKGROUND, 36);
     card.addComponent(Button);
-    const stripe = card.getComponent(Graphics)!; stripe.fillColor = accent; stripe.roundRect(-160, 69, 320, 6, 3); stripe.fill();
-    this.createLabel(`${name}Icon`, card, icon, 44, Color.WHITE).node.setPosition(0, 33, 0);
-    this.createLabel(`${name}Title`, card, title, 25, Color.WHITE).node.setPosition(0, -16, 0);
-    this.createLabel(`${name}Desc`, card, desc, 17, new Color(255, 255, 255, 125)).node.setPosition(0, -50, 0);
+    const stripe = card.getComponent(Graphics)!; UiKit.fillHorizontalGradient(stripe, -250, 79, 500, 9, accent, 4);
+    this.createLabel(`${name}Icon`, card, icon, 60, Color.WHITE).node.setPosition(0, 55, 0);
+    const cardTitle = this.createLabel(`${name}Title`, card, title, 30, Color.WHITE);
+    UiKit.styleLabel(cardTitle, { shadow: false });
+    cardTitle.node.setPosition(0, -16, 0);
+    this.createLabel(`${name}Desc`, card, desc, 20, new Color(255, 255, 255, 128)).node.setPosition(0, -62, 0);
     this.addPressFeedback(card);
     return card;
   }
