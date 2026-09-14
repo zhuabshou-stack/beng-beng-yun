@@ -1,16 +1,26 @@
 # 《蹦蹦云》当前交接
 
 更新时间：2026-09-14
-当前版本：v2.10.0 多平台上架适配版（抖音 + 微信）
-当前分支：`agent/v2.10.0-multiplatform`（自 `agent/html-parity` 的 v2.9.4 切出）
+当前版本：v2.11.0（UI 对齐 HTML 原版设计基准）
+当前分支：`agent/v2.11.0-ui-polish`（自 agent/v2.10.0-multiplatform 切出）
 项目：`D:\蹦蹦云开发\蹦蹦云-Cocos工程\cese`（注意：文档旧路径 `D:\cesi2` 已迁移，未回写）
-只读备份：`D:\蹦蹦云开发\版本备份\游戏1-蹦蹦云\v2.9.4`（上一版）；v2.10.0 备份见 `版本备份\游戏1-蹦蹦云\v2.10.0`
+只读备份：`版本备份\游戏1-蹦蹦云\v2.10.0`（上一版）；v2.11.0 备份见 `版本备份\游戏1-蹦蹦云\v2.11.0`
 
 ## 分支与保护边界
 
-- `master`、`agent/v2.8.0`、`agent/html-parity` 均不动；多平台工作只在 `agent/v2.10.0-multiplatform`。
+- `master`、`agent/v2.8.0`、`agent/html-parity`、`agent/v2.10.0-multiplatform` 均冻结；UI 工作只在 `agent/v2.11.0-ui-polish`。
 - `游戏本体`、所有 `legacy` 与历史版本备份只读。
 - 不上传平台、不发布、不提交审核；平台账号注册、开发者工具操作与审核提交由用户执行。
+
+## v2.11.0 已完成（UI 对齐 HTML 基准）
+
+- 用户反馈定调：HTML 版页面设计/进场/手感/技能是标杆，转 Cocos 只因手机画质；UI 优化 1:1 对齐 HTML 实测规格。
+- 新增 `assets/scripts/ui/UiKit.ts` 设计系统（渐变/投影/粗体阴影/Toggle/统一按压反馈），设计令牌取自 HTML css 实测值。
+- 主页与 HUD 按 HTML 占比放大布局；开始按钮三段渐变+呼吸光晕；卡片渐变高亮条；进度条渐变。
+- 全部弹窗统一渐变面板壳；设置真 Toggle；排行榜金银铜；皮肤金边；技能商店 ScrollView 滚动+专属渐变图标。
+- 结算面板：大分数+新纪录金色+分享成绩按钮（PlatformService.share）。
+- 清理：删 DreamyHome 死代码 278 行；Boot 进度条圆角渐变。
+- 回归 10/10 全通过（tools/browser-regression/regression.js）。
 
 ## 场景与构建
 
