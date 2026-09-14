@@ -1,6 +1,6 @@
 import {
-  _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Node,
-  Tween, UITransform, Vec3, VerticalTextAlignment, tween, view,
+  _decorator, Button, Color, Component, Graphics, HorizontalTextAlignment, Label, Mask,
+  Node, ScrollView, Tween, UITransform, Vec3, VerticalTextAlignment, tween, view,
 } from 'cc';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
@@ -90,9 +90,27 @@ export class LegacyGamePanels extends Component {
     const panel = this.openOverlay('GameSkinOverlay', '🎨 选择皮肤', 972, 1210);
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
+    // 10 款皮肤滚动视窗（与主页皮肤面板同构）
+    const viewNode = this.createNode('SkinScrollView', panel);
+    viewNode.addComponent(UITransform).setContentSize(848, 880);
+    viewNode.setPosition(0, -75, 0);
+    const mask = viewNode.addComponent(Mask);
+    mask.type = Mask.Type.GRAPHICS_STENCIL;
+    const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
+    maskArt.roundRect(-424, -440, 848, 880, 24);
+    maskArt.fill();
+    const content = this.createNode('SkinContent', viewNode);
+    const contentTransform = content.addComponent(UITransform);
+    contentTransform.setAnchorPoint(0.5, 1);
+    contentTransform.setContentSize(848, Math.ceil(SKINS.length / 3) * 415 + 20);
+    content.setPosition(0, 440, 0);
+    const scrollView = viewNode.addComponent(ScrollView);
+    scrollView.content = content;
+    scrollView.horizontal = false;
+    scrollView.vertical = true;
     SKINS.forEach((skin, index) => {
-      const item = this.createPanel(`Skin_${skin.id}`, panel, 264, 380, new Color(255, 255, 255, selected === index ? 36 : 15), 51);
-      item.setPosition((index % 3 - 1) * 292, 330 - Math.floor(index / 3) * 415, 0);
+      const item = this.createPanel(`Skin_${skin.id}`, content, 264, 380, new Color(255, 255, 255, selected === index ? 36 : 15), 51);
+      item.setPosition((index % 3 - 1) * 292, -210 - Math.floor(index / 3) * 415, 0);
       if (selected === index) {
         const selectedBorder = item.getComponent(Graphics);
         if (selectedBorder) {
@@ -104,9 +122,9 @@ export class LegacyGamePanels extends Component {
       }
       const preview = this.createNode(`Preview_${skin.id}`, item);
       preview.setPosition(0, 78, 0);
+      preview.setScale(2.3, 2.3, 1);
       const art = preview.addComponent(Graphics);
-      art.fillColor = Color.fromHEX(new Color(), skin.midColor); art.circle(0, 0, 50); art.fill();
-      art.fillColor = Color.fromHEX(new Color(), skin.eyeColor); art.circle(-13, 9, 5); art.circle(13, 9, 5); art.fill();
+      UiKit.drawCharacter(art, skin);
       this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -40, 0);
       const unlocked = coins >= skin.unlockCost;
       this.createLabel(`State_${skin.id}`, item, unlocked ? (selected === index ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost}币`, 28, new Color(255, 220, 130, unlocked ? 255 : 110)).node.setPosition(0, -115, 0);

@@ -257,11 +257,29 @@ export class HomeSceneBootstrap extends Component {
     const panel = this.openOverlay('SkinOverlay', '🎨 选择皮肤', 972, 1210);
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
+    // 10 款皮肤 4 行，放进可滚动视窗（滚轮/滑动），关闭按钮固定在面板底部
+    const viewNode = this.createNode('SkinScrollView', panel);
+    viewNode.addComponent(UITransform).setContentSize(848, 880);
+    viewNode.setPosition(0, -75, 0);
+    const mask = viewNode.addComponent(Mask);
+    mask.type = Mask.Type.GRAPHICS_STENCIL;
+    const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
+    maskArt.roundRect(-424, -440, 848, 880, 24);
+    maskArt.fill();
+    const content = this.createNode('SkinContent', viewNode);
+    const contentTransform = content.addComponent(UITransform);
+    contentTransform.setAnchorPoint(0.5, 1);
+    contentTransform.setContentSize(848, Math.ceil(SKINS.length / 3) * 415 + 20);
+    content.setPosition(0, 440, 0);
+    const scrollView = viewNode.addComponent(ScrollView);
+    scrollView.content = content;
+    scrollView.horizontal = false;
+    scrollView.vertical = true;
     SKINS.forEach((skin, index) => {
       const isSelected = selected === index;
       const unlocked = coins >= skin.unlockCost;
-      const item = this.createPanel(`Skin_${skin.id}`, panel, 264, 380, new Color(255, 255, 255, isSelected ? 34 : 16), 51);
-      item.setPosition((index % 3 - 1) * 292, 330 - Math.floor(index / 3) * 415, 0);
+      const item = this.createPanel(`Skin_${skin.id}`, content, 264, 380, new Color(255, 255, 255, isSelected ? 34 : 16), 51);
+      item.setPosition((index % 3 - 1) * 292, -210 - Math.floor(index / 3) * 415, 0);
       // HTML §3.3：选中 = #ffd700 边框 + 金色透明底
       if (isSelected) {
         const selectedBorder = item.getComponent(Graphics);
@@ -273,12 +291,12 @@ export class HomeSceneBootstrap extends Component {
         }
       }
       if (!unlocked) item.addComponent(UIOpacity).opacity = 128;
+      // 完整角色预览（与游戏内同一套绘制，含专属特征）
       const preview = this.createNode(`Preview_${skin.id}`, item);
       preview.setPosition(0, 78, 0);
+      preview.setScale(2.3, 2.3, 1);
       const art = preview.addComponent(Graphics);
-      art.fillColor = Color.fromHEX(new Color(), skin.accentColor); art.circle(0, 0, 50); art.fill();
-      art.fillColor = Color.fromHEX(new Color(), skin.midColor); art.circle(-8, 9, 41); art.fill();
-      art.fillColor = Color.fromHEX(new Color(), skin.eyeColor); art.circle(-13, 11, 5); art.circle(13, 11, 5); art.fill();
+      UiKit.drawCharacter(art, skin);
       this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -40, 0);
       this.createLabel(`Lock_${skin.id}`, item, unlocked ? (isSelected ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost} 币`, 28, unlocked ? new Color(255, 229, 140, 255) : new Color(255, 255, 255, 100)).node.setPosition(0, -115, 0);
       const button = item.addComponent(Button);
