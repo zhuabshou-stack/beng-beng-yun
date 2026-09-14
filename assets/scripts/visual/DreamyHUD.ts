@@ -123,16 +123,18 @@ export class DreamyHUD extends Component {
     this.scoreLabel = this.createLabel('ScoreLabel', scoreChip, '0', 62, new Color(255, 255, 255, 255));
     UiKit.styleLabel(this.scoreLabel, { shadowColor: UiKit.HUD_TEXT_SHADOW });
     this.scoreLabel.node.setPosition(0, 2, 0);
-    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 30, new Color(255, 255, 255, 155));
+    this.bestLabel = this.createLabel('BestLabel', scoreChip, '最高 0', 39, new Color(255, 255, 255, 155));
     UiKit.styleLabel(this.bestLabel, { shadowColor: new Color(0, 0, 0, 77) });
     this.bestLabel.node.setPosition(0, -58, 0);
 
+    // HTML：💰 emoji + 金色数字（#coinDisplay）
     const coinChip = this.createNode('CoinChip', this.node);
-    this.createIcon('CoinIcon', coinChip, frames.coinIcon, 'coin');
-    // HTML §4：金币计数 #ffd700 加粗
-    this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 40, new Color(255, 215, 0, 255));
+    const coinEmoji = this.createLabel('CoinIcon', coinChip, '💰', 55, Color.WHITE);
+    coinEmoji.node.setPosition(-58, 0, 0);
+    this.coinLabel = this.createLabel('CoinLabel', coinChip, '0', 44, new Color(255, 255, 255, 255));
+    this.coinLabel.color = new Color(255, 215, 0, 255);
     UiKit.styleLabel(this.coinLabel, { shadowColor: UiKit.HUD_TEXT_SHADOW });
-    this.coinLabel.node.setPosition(46, 0, 0);
+    this.coinLabel.node.setPosition(25, 0, 0);
 
     const statsChip = this.createGlassPanel('RunStatsChip', 420, 62, 0.10);
     this.statsLabel = this.createLabel('RunStatsLabel', statsChip, '高度 0m    ⭐ 0', 28, new Color(241, 245, 255, 225));
@@ -163,58 +165,55 @@ export class DreamyHUD extends Component {
     versionLabel.node.getComponent(UITransform)?.setContentSize(120, 36);
 
     this.pauseOverlay = this.createModalOverlay('PauseOverlay');
-    this.pausePanel = this.createStyledPanel('PausePanel', 640, 880, this.pauseOverlay);
-    const pauseTitle = this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 52, Color.WHITE);
+    // HTML 实测：pause-box 886×1196，无重新开始按钮（重开走结算面板）
+    this.pausePanel = this.createStyledPanel('PausePanel', 886, 1196, this.pauseOverlay);
+    const pauseTitle = this.createLabel('PauseTitle', this.pausePanel, '⏸️ 游戏暂停', 72, Color.WHITE);
     UiKit.styleLabel(pauseTitle);
-    pauseTitle.node.setPosition(0, 350, 0);
-    // HTML §4.1：继续=主渐变胶囊，次级=白 10% 菜单钮，主页=粉渐变
+    pauseTitle.node.setPosition(0, 472, 0);
     const resume = this.createRoundedButton('ResumeButton', this.pausePanel, '▶️ 继续游戏', 'primary');
-    resume.setPosition(0, 215, 0);
+    resume.setPosition(0, 292, 0);
     resume.on(Button.EventType.CLICK, this.resume, this);
-    const restart = this.createRoundedButton('PauseRestartButton', this.pausePanel, '🔄 重新开始', 'menu');
-    restart.setPosition(0, 95, 0);
-    restart.on(Button.EventType.CLICK, this.restart, this);
     const skills = this.createRoundedButton('PauseSkillButton', this.pausePanel, '⚡ 技能商店', 'menu');
-    skills.setPosition(0, -25, 0); skills.on(Button.EventType.CLICK, () => this.onSkillsRequested?.(), this);
+    skills.setPosition(0, 118, 0); skills.on(Button.EventType.CLICK, () => this.onSkillsRequested?.(), this);
     const ranking = this.createRoundedButton('PauseRankButton', this.pausePanel, '🏆 排行榜', 'menu');
-    ranking.setPosition(0, -145, 0); ranking.on(Button.EventType.CLICK, () => this.onRankingRequested?.(), this);
+    ranking.setPosition(0, -68, 0); ranking.on(Button.EventType.CLICK, () => this.onRankingRequested?.(), this);
     const skins = this.createRoundedButton('PauseSkinButton', this.pausePanel, '🎨 皮肤', 'menu');
-    skins.setPosition(0, -265, 0); skins.on(Button.EventType.CLICK, () => this.onSkinsRequested?.(), this);
+    skins.setPosition(0, -253, 0); skins.on(Button.EventType.CLICK, () => this.onSkinsRequested?.(), this);
     const pauseHome = this.createRoundedButton('PauseHomeButton', this.pausePanel, '🏠 回到主页', 'secondary');
-    pauseHome.setPosition(0, -380, 0);
+    pauseHome.setPosition(0, -458, 0);
     pauseHome.on(Button.EventType.CLICK, this.requestHome, this);
     this.pauseOverlay.active = false;
 
     this.settingsOverlay = this.createModalOverlay('SettingsOverlay');
-    this.settingsPanel = this.createStyledPanel('SettingsPanel', 640, 560, this.settingsOverlay);
-    const settingsTitle = this.createLabel('SettingsTitle', this.settingsPanel, '⚙️ 设置', 48, Color.WHITE);
+    this.settingsPanel = this.createStyledPanel('SettingsPanel', 918, 1000, this.settingsOverlay);
+    const settingsTitle = this.createLabel('SettingsTitle', this.settingsPanel, '⚙️ 设置', 57, Color.WHITE);
     UiKit.styleLabel(settingsTitle);
-    settingsTitle.node.setPosition(0, 215, 0);
+    settingsTitle.node.setPosition(0, 410, 0);
     // HTML §3.2：标签 + 真开关
-    const soundLabel = this.createLabel('SoundSettingLabel', this.settingsPanel, '🔊 音效', 34, new Color(255, 255, 255, 204));
+    const soundLabel = this.createLabel('SoundSettingLabel', this.settingsPanel, '🔊 音效', 41, new Color(255, 255, 255, 204));
     UiKit.styleLabel(soundLabel, { shadow: false });
     soundLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
-    soundLabel.node.getComponent(UITransform)?.setContentSize(360, 60);
-    soundLabel.node.setPosition(-135, 70, 0);
-    const soundToggle = UiKit.createToggle(this.settingsPanel, 195, 70, AudioManager.soundEnabled, (setOn) => {
+    soundLabel.node.getComponent(UITransform)?.setContentSize(400, 70);
+    soundLabel.node.setPosition(-240, 150, 0);
+    const soundToggle = UiKit.createToggle(this.settingsPanel, 285, 150, AudioManager.soundEnabled, (setOn) => {
       const next = !AudioManager.soundEnabled;
       AudioManager.setSoundEnabled(next);
       setOn(next);
     });
     soundToggle.name = 'SoundToggle';
-    const musicLabel = this.createLabel('MusicSettingLabel', this.settingsPanel, '🎵 音乐', 34, new Color(255, 255, 255, 204));
+    const musicLabel = this.createLabel('MusicSettingLabel', this.settingsPanel, '🎵 音乐', 41, new Color(255, 255, 255, 204));
     UiKit.styleLabel(musicLabel, { shadow: false });
     musicLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
-    musicLabel.node.getComponent(UITransform)?.setContentSize(360, 60);
-    musicLabel.node.setPosition(-135, -70, 0);
-    const musicToggle = UiKit.createToggle(this.settingsPanel, 195, -70, AudioManager.musicEnabled, (setOn) => {
+    musicLabel.node.getComponent(UITransform)?.setContentSize(400, 70);
+    musicLabel.node.setPosition(-240, -40, 0);
+    const musicToggle = UiKit.createToggle(this.settingsPanel, 285, -40, AudioManager.musicEnabled, (setOn) => {
       const next = !AudioManager.musicEnabled;
       AudioManager.setMusicEnabled(next);
       setOn(next);
     });
     musicToggle.name = 'MusicToggle';
     const closeSettings = this.createRoundedButton('CloseSettingsButton', this.settingsPanel, '关闭', 'menu');
-    closeSettings.setPosition(0, -205, 0);
+    closeSettings.setPosition(0, -380, 0);
     closeSettings.on(Button.EventType.CLICK, this.closeSettingsPanel, this);
     this.settingsOverlay.active = false;
 
@@ -230,15 +229,16 @@ export class DreamyHUD extends Component {
     const safe = PlatformService.getSafeAreaInsets(width, height);
     const halfWidth = width * 0.5 / scale;
     const halfHeight = height * 0.5 / scale;
-    const top = halfHeight - safe.top / scale - 80;
-    this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 80, top, 0);
-    this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 195, top, 0);
-    this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 310, top, 0);
-    this.node.getChildByName('ScoreChip')?.setPosition(0, top - 12, 0);
-    this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 130, top, 0);
-    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 140, 0);
-    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 205, 0);
-    this.skillBar?.setPosition(halfWidth - safe.right / scale - 80, top - 150, 0);
+    // HTML 实测：圆钮 133，中心距顶 99；分数中心距顶 85
+    const top = halfHeight - safe.top / scale - 99;
+    this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 100, top, 0);
+    this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 255, top, 0);
+    this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 410, top, 0);
+    this.node.getChildByName('ScoreChip')?.setPosition(0, top + 14, 0);
+    this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 105, top + 3, 0);
+    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 190, 0);
+    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 255, 0);
+    this.skillBar?.setPosition(halfWidth - safe.right / scale - 85, top, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);
     this.pauseOverlay?.getComponent(UITransform)?.setContentSize(width / scale, height / scale);
@@ -310,11 +310,6 @@ export class DreamyHUD extends Component {
     if (this.pauseOverlay) this.pauseOverlay.active = false;
   }
 
-  private restart(): void {
-    if (this.pauseOverlay) this.pauseOverlay.active = false;
-    this.gameManager?.onRestartRequested?.();
-  }
-
   private openSettingsPanel(): void {
     if (!this.gameManager) return;
     this.settingsClosing = false;
@@ -353,18 +348,18 @@ export class DreamyHUD extends Component {
       if (!data[id].owned) return;
       const definition = SKILLS.find((skill) => skill.id === id);
       if (!definition) return;
-      const button = this.createGlassPanel(`Skill_${id}`, 110, 110, 0.38);
+      const button = this.createGlassPanel(`Skill_${id}`, 133, 133, 0.38);
       button.parent = this.skillBar;
-      button.setPosition(-index * 124, 0, 0);
+      button.setPosition(-index * 145, 0, 0);
       const buttonComponent = button.addComponent(Button);
       this.skillButtons.set(id, buttonComponent);
-      this.createLabel(`SkillIcon_${id}`, button, definition.icon, 42, Color.WHITE).node.setPosition(0, 14, 0);
+      this.createLabel(`SkillIcon_${id}`, button, definition.icon, 50, Color.WHITE).node.setPosition(0, 16, 0);
       const key = SKILLS.findIndex((skill) => skill.id === id) + 1;
-      const keyLabel = this.createLabel(`SkillKey_${id}`, button, `${key}`, 16, new Color(255, 255, 255, 135));
+      const keyLabel = this.createLabel(`SkillKey_${id}`, button, `${key}`, 18, new Color(255, 255, 255, 135));
       keyLabel.node.getComponent(UITransform)?.setContentSize(24, 24);
-      keyLabel.node.setPosition(38, 38, 0);
-      const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 18, new Color(255, 215, 0, 255));
-      label.node.setPosition(0, -34, 0);
+      keyLabel.node.setPosition(46, 46, 0);
+      const label = this.createLabel(`SkillState_${id}`, button, `${data[id].uses}`, 20, new Color(255, 215, 0, 255));
+      label.node.setPosition(0, -40, 0);
       this.skillLabels.set(id, label);
       button.on(Button.EventType.CLICK, () => this.gameManager?.useSkill(id), this);
       this.addPressFeedback(button);
@@ -435,7 +430,7 @@ export class DreamyHUD extends Component {
   }
 
   private createGlassButton(name: string, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'settings'): Node {
-    const node = this.createGlassPanel(name, 100, 100, 0.28);
+    const node = this.createGlassPanel(name, 133, 133, 0.28);
     node.addComponent(Button);
     this.createIcon(`${name}Icon`, node, frame, kind);
     this.addPressFeedback(node);
@@ -445,14 +440,14 @@ export class DreamyHUD extends Component {
   private createIcon(name: string, parent: Node, frame: SpriteFrame | null, kind: 'home' | 'pause' | 'coin' | 'settings'): Node {
     const node = this.createNode(name, parent);
     const transform = node.addComponent(UITransform);
-    transform.setContentSize(60, 60);
+    transform.setContentSize(80, 80);
     if (frame) {
       const sprite = node.addComponent(Sprite);
       sprite.spriteFrame = frame;
       return node;
     }
-    // 矢量图形按 60px 容器等比放大绘制（原尺寸按 42px 设计）
-    node.setScale(1.42, 1.42, 1);
+    // 矢量图形按 80px 容器等比放大绘制（原尺寸按 42px 设计）
+    node.setScale(1.9, 1.9, 1);
     const graphics = node.addComponent(Graphics);
     graphics.strokeColor = kind === 'coin' ? new Color(255, 224, 105, 255) : Color.WHITE;
     graphics.fillColor = graphics.strokeColor;
@@ -480,20 +475,21 @@ export class DreamyHUD extends Component {
 
   private createRoundedButton(name: string, parent: Node, text: string, style: 'primary' | 'menu' | 'secondary' = 'primary'): Node {
     if (style === 'primary') {
-      return this.createStyledButton(name, parent, text, 480, 104, 52, 38, UiKit.PRIMARY_GRADIENT);
+      // HTML 实测：胶囊 753×152 圆角 76
+      return this.createStyledButton(name, parent, text, 753, 152, 76, 51, UiKit.PRIMARY_GRADIENT);
     }
     if (style === 'secondary') {
-      return this.createStyledButton(name, parent, text, 420, 96, 48, 34, UiKit.ACCENT_GRADIENT);
+      return this.createStyledButton(name, parent, text, 753, 125, 62, 44, UiKit.ACCENT_GRADIENT);
     }
-    // menu：白 10% 底 + 白 15% 边（HTML .btn-menu）
+    // menu：白 10% 底 + 白 15% 边（HTML .btn-menu 665×130）
     const node = this.createNode(name, parent);
-    node.addComponent(UITransform).setContentSize(480, 96);
+    node.addComponent(UITransform).setContentSize(665, 130);
     const art = node.addComponent(Graphics);
     art.fillColor = new Color(255, 255, 255, 26);
-    art.roundRect(-240, -48, 480, 96, 24); art.fill();
+    art.roundRect(-332, -65, 665, 130, 33); art.fill();
     art.strokeColor = new Color(255, 255, 255, 38); art.lineWidth = 2;
-    art.roundRect(-238, -46, 476, 92, 23); art.stroke();
-    const label = this.createLabel(`${name}Label`, node, text, 32, Color.WHITE);
+    art.roundRect(-330, -63, 661, 126, 32); art.stroke();
+    const label = this.createLabel(`${name}Label`, node, text, 44, Color.WHITE);
     UiKit.styleLabel(label, { shadow: false });
     node.addComponent(Button);
     UiKit.pressFeedback(node, 0.95);

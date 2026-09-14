@@ -307,31 +307,32 @@ export class MinimalGameBootstrap extends Component {
     const veil = this.resultOverlay.addComponent(Graphics);
     veil.fillColor = new Color(0, 0, 0, 89);
     veil.rect(-visible.width * 0.5, -visible.height * 0.5, visible.width, visible.height); veil.fill();
-    // HTML §3.1 面板规格：渐变底 + 白 10% 边 + 大投影
-    this.resultPanel = this.createGraphicsNode('ResultPanel', 700, 700, this.resultOverlay);
+    // HTML gameOverOverlay：pause-box 886 宽，三按钮纵排
+    this.resultPanel = this.createGraphicsNode('ResultPanel', 886, 1250, this.resultOverlay);
     this.resultPanel.setScale(DisplaySettings.getUiScale(), DisplaySettings.getUiScale(), 1);
     const panel = this.resultPanel.addComponent(Graphics);
-    UiKit.drawDropShadow(panel, 700, 700, 48, 24, 128);
-    UiKit.fillRoundedVerticalGradient(panel, 700, 700, 48, UiKit.PANEL_GRADIENT);
+    UiKit.drawDropShadow(panel, 886, 1250, 66, 24, 128);
+    UiKit.fillRoundedVerticalGradient(panel, 886, 1250, 66, UiKit.PANEL_GRADIENT);
     panel.strokeColor = new Color(255, 255, 255, 26); panel.lineWidth = 3;
-    panel.roundRect(-346, -346, 692, 692, 46); panel.stroke();
-    const title = this.createLabel('Title', this.resultPanel, '本次云端旅程结束', 40, new Vec3(0, 265, 0));
+    panel.roundRect(-439, -621, 878, 1242, 64); panel.stroke();
+    const title = this.createLabel('Title', this.resultPanel, '本次云端旅程结束', 44, new Vec3(0, 480, 0));
     UiKit.styleLabel(title, { shadow: false });
-    const score = this.createLabel('ResultScore', this.resultPanel, '0', 110, new Vec3(0, 140, 0));
+    // HTML final-score 48css → 133
+    const score = this.createLabel('ResultScore', this.resultPanel, '0', 133, new Vec3(0, 330, 0));
     UiKit.styleLabel(score);
-    const recordLabel = this.createLabel('ResultRecord', this.resultPanel, '🎉 新纪录！太棒了！', 36, new Vec3(0, 55, 0));
+    const recordLabel = this.createLabel('ResultRecord', this.resultPanel, '🎉 新纪录！太棒了！', 50, new Vec3(0, 185, 0));
     UiKit.styleLabel(recordLabel, { shadow: false });
     recordLabel.color = new Color(255, 215, 0, 255);
     recordLabel.node.active = false;
-    const resultStats = this.createLabel('ResultStats', this.resultPanel, '高度 0m   金币 0   星星 0\n最高连击 0', 30, new Vec3(0, -55, 0));
-    resultStats.lineHeight = 44;
-    resultStats.node.getComponent(UITransform)?.setContentSize(600, 120);
-    const restart = this.createGradientButton('RestartButton', this.resultPanel, '🔄  再来一次', 480, 104, 40, 38);
-    restart.setPosition(0, -180, 0); restart.on(Button.EventType.CLICK, this.restart, this);
-    const home = this.createGradientButton('ResultHomeButton', this.resultPanel, '🏠 回主页', 230, 104, 40, 34, UiKit.CARD_ACCENTS.stats);
-    home.setPosition(-125, -290, 0); home.on(Button.EventType.CLICK, this.returnHome, this);
-    const share = this.createGradientButton('ResultShareButton', this.resultPanel, '📱 分享', 230, 104, 40, 34, UiKit.ACCENT_GRADIENT);
-    share.setPosition(125, -290, 0);
+    const resultStats = this.createLabel('ResultStats', this.resultPanel, '高度 0m   金币 0   星星 0\n最高连击 0', 41, new Vec3(0, 20, 0));
+    resultStats.lineHeight = 58;
+    resultStats.node.getComponent(UITransform)?.setContentSize(780, 160);
+    const restart = this.createGradientButton('RestartButton', this.resultPanel, '🔄  再来一次', 753, 152, 76, 44);
+    restart.setPosition(0, -240, 0); restart.on(Button.EventType.CLICK, this.restart, this);
+    const home = this.createGradientButton('ResultHomeButton', this.resultPanel, '🏠  回到主页', 753, 125, 62, 44, UiKit.ACCENT_GRADIENT);
+    home.setPosition(0, -405, 0); home.on(Button.EventType.CLICK, this.returnHome, this);
+    const share = this.createGradientButton('ResultShareButton', this.resultPanel, '📱  分享成绩', 753, 125, 62, 44, UiKit.ACCENT_GRADIENT);
+    share.setPosition(0, -545, 0);
     share.on(Button.EventType.CLICK, () => {
       const best = this.gameManager ? Math.floor(this.gameManager.data.score) : 0;
       PlatformService.share(`我在蹦蹦云跳到了 ${best} 分！`);

@@ -40,57 +40,76 @@ export class LegacyGamePanels extends Component {
   }
 
   showSkills(): void {
-    const panel = this.openOverlay('GameSkillOverlay', '⚡ 技能商店', 840, 1450);
+    const panel = this.openOverlay('GameSkillOverlay', '⚡ 技能商店', 972, 1210);
     const data = LegacyProgression.loadSkills();
     const active = LegacyProgression.loadActiveSkills();
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     SKILLS.forEach((skill, index) => {
       const entry = data[skill.id];
-      const card = this.createPanel(`Skill_${skill.id}`, panel, 710, 160, new Color(255, 255, 255, active.indexOf(skill.id) >= 0 ? 34 : 14), 23);
-      card.setPosition(0, 460 - index * 178, 0);
-      this.createLabel(`Icon_${skill.id}`, card, skill.icon, 43, Color.WHITE).node.setPosition(-285, 30, 0);
-      const title = this.createLabel(`Title_${skill.id}`, card, `${skill.name}  Lv.${entry.level}`, 26, Color.WHITE);
-      title.horizontalAlign = HorizontalTextAlignment.LEFT; title.node.setPosition(-135, 42, 0);
-      const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 17, new Color(255, 255, 255, 145));
-      desc.horizontalAlign = HorizontalTextAlignment.LEFT; desc.node.setPosition(-50, -15, 0); desc.node.getComponent(UITransform)?.setContentSize(470, 48);
+      const card = this.createPanel(`Skill_${skill.id}`, panel, 848, 185, new Color(255, 255, 255, active.indexOf(skill.id) >= 0 ? 34 : 14), 39);
+      card.setPosition(0, 415 - index * 210, 0);
+      const iconBlock = this.createNode(`IconBlock_${skill.id}`, card);
+      iconBlock.addComponent(UITransform).setContentSize(122, 122);
+      iconBlock.setPosition(-330, 0, 0);
+      const iconArt = iconBlock.addComponent(Graphics);
+      const gradient = UiKit.SKILL_GRADIENTS[skill.id] ?? UiKit.PRIMARY_GRADIENT;
+      UiKit.fillRoundedVerticalGradient(iconArt, 122, 122, 33, gradient);
+      this.createLabel(`Icon_${skill.id}`, iconBlock, skill.icon, 52, Color.WHITE).node.setPosition(0, 0, 0);
+      const title = this.createLabel(`Title_${skill.id}`, card, `${skill.name}  Lv.${entry.level}`, 41, Color.WHITE);
+      title.horizontalAlign = HorizontalTextAlignment.LEFT; title.node.getComponent(UITransform)?.setContentSize(400, 50); title.node.setPosition(-60, 52, 0);
+      const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 33, new Color(255, 255, 255, 145));
+      desc.horizontalAlign = HorizontalTextAlignment.LEFT; desc.node.getComponent(UITransform)?.setContentSize(420, 70); desc.node.setPosition(-85, -30, 0);
       const actionText = entry.owned ? (active.indexOf(skill.id) >= 0 ? '🟢 已装备' : '⚪ 装备')
         : skill.unlockLevel > (this.gameManager?.currentLevel ?? 1) ? `通关${skill.unlockLevel}关` : `${skill.coinCost} 💰`;
-      const action = this.createButton(`Action_${skill.id}`, card, actionText, 205, 58, new Color(102, 126, 234, 230), 18);
-      action.setPosition(230, 42, 0);
+      const action = this.createGradientButton(`Action_${skill.id}`, card, actionText, 290, 80, 40, 26);
+      action.setPosition(270, 25, 0);
       action.on(Button.EventType.CLICK, () => this.skillAction(skill.id, coins), this);
     });
-    this.addClose(panel, -640);
+    this.addClose(panel, -530, 848);
   }
 
   showRanking(): void {
-    const panel = this.openOverlay('GameRankOverlay', '🏆 排行榜', 780, 1120);
+    const panel = this.openOverlay('GameRankOverlay', '🏆 排行榜', 752, 1180);
     const ranking = StorageService.getJSON<number[]>('cloudBounceRanking', []);
-    if (ranking.length === 0) this.createLabel('RankEmpty', panel, '还没有记录\n快去跳一跳吧！☁️', 29, new Color(255, 255, 255, 110)).node.setPosition(0, 20, 0);
+    if (ranking.length === 0) this.createLabel('RankEmpty', panel, '还没有记录\n快去跳一跳吧！☁️', 39, new Color(255, 255, 255, 110)).node.setPosition(0, 20, 0);
     else ranking.slice(0, 10).forEach((score, index) => {
-      const row = this.createPanel(`Rank_${index}`, panel, 650, 70, new Color(255, 255, 255, index < 3 ? 18 : 7), 16);
-      row.setPosition(0, 370 - index * 80, 0);
-      this.createLabel(`Pos_${index}`, row, index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`, 25, Color.WHITE).node.setPosition(-250, 0, 0);
-      this.createLabel(`Player_${index}`, row, '玩家', 22, new Color(255, 255, 255, 205)).node.setPosition(-70, 0, 0);
-      this.createLabel(`Score_${index}`, row, `${score}`, 26, new Color(255, 215, 0, 255)).node.setPosition(235, 0, 0);
+      const rowColor = index === 0 ? new Color(255, 215, 0, 20)
+        : index === 1 ? new Color(192, 192, 192, 15)
+          : index === 2 ? new Color(205, 127, 50, 13)
+            : new Color(255, 255, 255, 8);
+      const row = this.createPanel(`Rank_${index}`, panel, 628, 111, rowColor, 33);
+      row.setPosition(0, 415 - index * 125, 0);
+      this.createLabel(`Pos_${index}`, row, index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`, 36, Color.WHITE).node.setPosition(-240, 0, 0);
+      this.createLabel(`Player_${index}`, row, '玩家', 41, new Color(255, 255, 255, 205)).node.setPosition(-65, 0, 0);
+      this.createLabel(`Score_${index}`, row, `${score}`, 44, new Color(255, 215, 0, 255)).node.setPosition(222, 0, 0);
     });
-    this.addClose(panel, -465);
+    this.addClose(panel, -490, 628);
   }
 
   showSkins(): void {
-    const panel = this.openOverlay('GameSkinOverlay', '🎨 选择皮肤', 840, 1050);
+    const panel = this.openOverlay('GameSkinOverlay', '🎨 选择皮肤', 972, 1210);
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
     SKINS.forEach((skin, index) => {
-      const item = this.createPanel(`Skin_${skin.id}`, panel, 215, 220, new Color(255, 255, 255, selected === index ? 36 : 15), 22);
-      item.setPosition((index % 3 - 1) * 235, 245 - Math.floor(index / 3) * 260, 0);
+      const item = this.createPanel(`Skin_${skin.id}`, panel, 264, 380, new Color(255, 255, 255, selected === index ? 36 : 15), 51);
+      item.setPosition((index % 3 - 1) * 292, 330 - Math.floor(index / 3) * 415, 0);
+      if (selected === index) {
+        const selectedBorder = item.getComponent(Graphics);
+        if (selectedBorder) {
+          selectedBorder.strokeColor = new Color(255, 215, 0, 230);
+          selectedBorder.lineWidth = 5;
+          selectedBorder.roundRect(-128, -186, 256, 372, 49);
+          selectedBorder.stroke();
+        }
+      }
       const preview = this.createNode(`Preview_${skin.id}`, item);
-      preview.setPosition(0, 42, 0);
+      preview.setPosition(0, 78, 0);
       const art = preview.addComponent(Graphics);
-      art.fillColor = Color.fromHEX(new Color(), skin.midColor); art.circle(0, 0, 40); art.fill();
-      art.fillColor = Color.fromHEX(new Color(), skin.eyeColor); art.circle(-11, 8, 4); art.circle(11, 8, 4); art.fill();
-      this.createLabel(`Name_${skin.id}`, item, skin.name, 23, Color.WHITE).node.setPosition(0, -25, 0);
+      art.fillColor = Color.fromHEX(new Color(), skin.midColor); art.circle(0, 0, 50); art.fill();
+      art.fillColor = Color.fromHEX(new Color(), skin.eyeColor); art.circle(-13, 9, 5); art.circle(13, 9, 5); art.fill();
+      this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -40, 0);
       const unlocked = coins >= skin.unlockCost;
-      this.createLabel(`State_${skin.id}`, item, unlocked ? (selected === index ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost}币`, 17, new Color(255, 220, 130, unlocked ? 255 : 110)).node.setPosition(0, -70, 0);
+      this.createLabel(`State_${skin.id}`, item, unlocked ? (selected === index ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost}币`, 28, new Color(255, 220, 130, unlocked ? 255 : 110)).node.setPosition(0, -115, 0);
       const button = item.addComponent(Button); button.interactable = unlocked;
       if (unlocked) item.on(Button.EventType.CLICK, () => {
         StorageService.setNumber('cloudBounceSkin', index);
@@ -102,7 +121,7 @@ export class LegacyGamePanels extends Component {
       }, this);
       this.addPressFeedback(item);
     });
-    this.addClose(panel, -425);
+    this.addClose(panel, -520, 848);
   }
 
   showLevelComplete(level: number): void {
@@ -114,16 +133,18 @@ export class LegacyGamePanels extends Component {
   }
 
   private buildLevelPanel(): void {
-    this.levelPanel = this.createPanel('LevelComplete', this.node, 700, 720, new Color(26, 26, 54, 248), 50);
+    this.levelPanel = this.createPanel('LevelComplete', this.node, 886, 1250, new Color(26, 26, 54, 248), 66);
     this.levelPanel.setPosition(0, 0, 0);
-    this.createLabel('Celebration', this.levelPanel, '🎉', 88, Color.WHITE).node.setPosition(0, 230, 0);
-    this.createLabel('CompleteTitle', this.levelPanel, '通关成功!', 54, Color.WHITE).node.setPosition(0, 130, 0);
-    this.createLabel('CompleteLevel', this.levelPanel, '第 1 关完成', 28, new Color(255, 255, 255, 175)).node.setPosition(0, 65, 0);
-    this.createLabel('CompleteReward', this.levelPanel, `+${GAME.levelRewardCoins} 🪙 通关奖励`, 25, new Color(255, 215, 0, 220)).node.setPosition(0, 5, 0);
-    const next = this.createButton('NextLevelButton', this.levelPanel, '下一关 ▶', 390, 92, new Color(102, 126, 234, 255), 30);
-    next.setPosition(0, -105, 0); next.on(Button.EventType.CLICK, () => { this.levelPanel!.active = false; this.gameManager?.continueNextLevel(); }, this);
-    const home = this.createButton('CompleteHomeButton', this.levelPanel, '🏠 回到主页', 330, 78, new Color(245, 87, 108, 255), 24);
-    home.setPosition(0, -225, 0); home.on(Button.EventType.CLICK, () => this.onHomeRequested?.(), this);
+    this.createLabel('Celebration', this.levelPanel, '🎉', 164, Color.WHITE).node.setPosition(0, 390, 0);
+    const completeTitle = this.createLabel('CompleteTitle', this.levelPanel, '通关成功!', 93, Color.WHITE);
+    UiKit.styleLabel(completeTitle);
+    completeTitle.node.setPosition(0, 190, 0);
+    this.createLabel('CompleteLevel', this.levelPanel, '第 1 关完成', 50, new Color(255, 255, 255, 175)).node.setPosition(0, 80, 0);
+    this.createLabel('CompleteReward', this.levelPanel, `+${GAME.levelRewardCoins} 🪙 通关奖励`, 39, new Color(255, 215, 0, 220)).node.setPosition(0, 0, 0);
+    const next = this.createGradientButton('NextLevelButton', this.levelPanel, '下一关 ▶', 753, 152, 76, 44);
+    next.setPosition(0, -170, 0); next.on(Button.EventType.CLICK, () => { this.levelPanel!.active = false; this.gameManager?.continueNextLevel(); }, this);
+    const home = this.createGradientButton('CompleteHomeButton', this.levelPanel, '🏠 回到主页', 753, 125, 62, 44, UiKit.ACCENT_GRADIENT);
+    home.setPosition(0, -350, 0); home.on(Button.EventType.CLICK, () => this.onHomeRequested?.(), this);
     this.levelPanel.active = false;
   }
 
@@ -169,9 +190,21 @@ export class LegacyGamePanels extends Component {
     return panel;
   }
 
-  private addClose(panel: Node, y: number): void {
-    const close = this.createButton('CloseOverlay', panel, '关闭', 300, 72, new Color(255, 255, 255, 28), 24);
+  private addClose(panel: Node, y: number, width = 848): void {
+    const close = this.createButton('CloseOverlay', panel, '关闭', width, 122, new Color(255, 255, 255, 26), 34);
     close.setPosition(0, y, 0); close.on(Button.EventType.CLICK, this.closeOverlay, this);
+  }
+
+  private createGradientButton(name: string, parent: Node, text: string, width: number, height: number, radius: number, fontSize: number, colors: readonly [string, string] = UiKit.PRIMARY_GRADIENT): Node {
+    const node = this.createNode(name, parent); node.addComponent(UITransform).setContentSize(width, height);
+    const art = node.addComponent(Graphics);
+    UiKit.drawDropShadow(art, width, height, radius, 12, 90);
+    UiKit.fillRoundedVerticalGradient(art, width, height, radius, colors);
+    art.strokeColor = new Color(255, 255, 255, 51); art.lineWidth = 2;
+    art.roundRect(-width * 0.5 + 2, -height * 0.5 + 2, width - 4, height - 4, Math.max(1, radius - 2)); art.stroke();
+    const label = this.createLabel(`${name}Label`, node, text, fontSize, Color.WHITE);
+    UiKit.styleLabel(label, { shadow: false });
+    node.addComponent(Button); this.addPressFeedback(node); return node;
   }
 
   private closeOverlay(): void {
