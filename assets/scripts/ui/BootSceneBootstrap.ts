@@ -5,6 +5,7 @@ import {
 import { GAME } from '../core/GameConfig';
 import { AudioCatalog } from '../core/AudioCatalog';
 import { SceneNavigator } from './SceneNavigator';
+import { UiKit } from './UiKit';
 const { ccclass, property } = _decorator;
 
 interface BootSpark {
@@ -158,13 +159,9 @@ export class BootSceneBootstrap extends Component {
     this.progressGraphics.fillColor = new Color(255, 255, 255, 48);
     this.progressGraphics.roundRect(-width * 0.5, -18, width, 14, 7); this.progressGraphics.fill();
     const progressWidth = width * this.displayProgress;
-    const segmentColors = [new Color(240, 147, 251, 245), new Color(245, 87, 108, 245), new Color(255, 215, 0, 245)];
-    for (let i = 0; i < 3; i += 1) {
-      const segmentStart = width * i / 3;
-      const filled = Math.max(0, Math.min(width / 3, progressWidth - segmentStart));
-      if (filled <= 0) continue;
-      this.progressGraphics.fillColor = segmentColors[i];
-      this.progressGraphics.rect(-width * 0.5 + segmentStart, -18, filled, 14); this.progressGraphics.fill();
+    if (progressWidth > 1) {
+      // 填充段同样保持圆角，避免 0%/100% 时四角穿出
+      UiKit.fillRoundedHorizontalGradient(this.progressGraphics, -width * 0.5 + progressWidth * 0.5, -11, progressWidth, 14, 7, UiKit.START_GRADIENT);
     }
     this.progressLabel.string = `正在加载...  ${Math.round(this.displayProgress * 100)}%`;
   }

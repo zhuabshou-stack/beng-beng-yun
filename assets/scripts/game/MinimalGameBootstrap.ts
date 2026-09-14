@@ -17,6 +17,8 @@ import { DreamyHUD } from '../visual/DreamyHUD';
 import { VisualEffects } from '../visual/VisualEffects';
 import { VisualEnvironment } from '../visual/VisualEnvironment';
 import { StorageService } from '../platform/StorageService';
+import { PlatformService } from '../platform/PlatformService';
+import { UiKit } from '../ui/UiKit';
 import { LegacyGamePanels } from '../ui/LegacyGamePanels';
 const { ccclass, property } = _decorator;
 
@@ -189,8 +191,14 @@ export class MinimalGameBootstrap extends Component {
 
     if (this.resultPanel && this.resultOverlay && this.gameManager?.phase === 'gameover' && !this.resultOverlay.active) {
       const data = this.gameManager.data;
+      const isRecord = Math.floor(data.score) >= data.bestScore && data.score > 0;
       const score = this.resultPanel.getChildByName('ResultScore')?.getComponent(Label);
-      if (score) score.string = `分数 ${Math.floor(data.score)}`;
+      if (score) {
+        score.string = `${Math.floor(data.score)}`;
+        score.color = isRecord ? new Color(255, 215, 0, 255) : Color.WHITE;
+      }
+      const record = this.resultPanel.getChildByName('ResultRecord');
+      if (record) record.active = isRecord;
       const stats = this.resultPanel.getChildByName('ResultStats')?.getComponent(Label);
       if (stats) stats.string = `高度 ${Math.floor(data.heightMeters)}m   金币 ${data.runCoins}   星星 ${data.stars}\n最高连击 ${data.maxCombo}`;
       this.resultOverlay.active = true;
@@ -295,25 +303,39 @@ export class MinimalGameBootstrap extends Component {
   private buildResultPanel(): void {
     const visible = view.getVisibleSize();
     this.resultOverlay = this.createGraphicsNode('ResultOverlay', visible.width, visible.height);
+    // HTML §4.2：遮罩黑 35% 淡入
     const veil = this.resultOverlay.addComponent(Graphics);
-    veil.fillColor = new Color(0, 0, 0, 90);
+    veil.fillColor = new Color(0, 0, 0, 89);
     veil.rect(-visible.width * 0.5, -visible.height * 0.5, visible.width, visible.height); veil.fill();
-    this.resultPanel = this.createGraphicsNode('ResultPanel', 660, 560, this.resultOverlay);
+    // HTML §3.1 面板规格：渐变底 + 白 10% 边 + 大投影
+    this.resultPanel = this.createGraphicsNode('ResultPanel', 700, 700, this.resultOverlay);
     this.resultPanel.setScale(DisplaySettings.getUiScale(), DisplaySettings.getUiScale(), 1);
     const panel = this.resultPanel.addComponent(Graphics);
-    panel.fillColor = new Color(38, 39, 92, 238);
-    panel.roundRect(-330, -280, 660, 560, 54); panel.fill();
-    panel.strokeColor = new Color(255, 255, 255, 70); panel.lineWidth = 3;
-    panel.roundRect(-326, -276, 652, 552, 51); panel.stroke();
-    this.createLabel('Title', this.resultPanel, '本次云端旅程结束', 50, new Vec3(0, 180, 0));
-    this.createLabel('ResultScore', this.resultPanel, '分数 0', 43, new Vec3(0, 92, 0));
-    const resultStats = this.createLabel('ResultStats', this.resultPanel, '高度 0m   金币 0   星星 0\n最高连击 0', 25, new Vec3(0, 0, 0));
-    resultStats.lineHeight = 36;
-    resultStats.node.getComponent(UITransform)?.setContentSize(580, 105);
-    const restart = this.createButton('RestartButton', this.resultPanel, '重新开始', 310, 90, new Color(255, 177, 106, 255), 32);
-    restart.setPosition(0, -115, 0); restart.on(Button.EventType.CLICK, this.restart, this);
-    const home = this.createButton('ResultHomeButton', this.resultPanel, '返回主页', 260, 72, new Color(104, 128, 191, 255), 25);
-    home.setPosition(0, -205, 0); home.on(Button.EventType.CLICK, this.returnHome, this);
+    UiKit.drawDropShadow(panel, 700, 700, 48, 24, 128);
+    UiKit.fillRoundedVerticalGradient(panel, 700, 700, 48, UiKit.PANEL_GRADIENT);
+    panel.strokeColor = new Color(255, 255, 255, 26); panel.lineWidth = 3;
+    panel.roundRect(-346, -346, 692, 692, 46); panel.stroke();
+    const title = this.createLabel('Title', this.resultPanel, '本次云端旅程结束', 40, new Vec3(0, 265, 0));
+    UiKit.styleLabel(title, { shadow: false });
+    const score = this.createLabel('ResultScore', this.resultPanel, '0', 110, new Vec3(0, 140, 0));
+    UiKit.styleLabel(score);
+    const recordLabel = this.createLabel('ResultRecord', this.resultPanel, '🎉 新纪录！太棒了！', 36, new Vec3(0, 55, 0));
+    UiKit.styleLabel(recordLabel, { shadow: false });
+    recordLabel.color = new Color(255, 215, 0, 255);
+    recordLabel.node.active = false;
+    const resultStats = this.createLabel('ResultStats', this.resultPanel, '高度 0m   金币 0   星星 0\n最高连击 0', 30, new Vec3(0, -55, 0));
+    resultStats.lineHeight = 44;
+    resultStats.node.getComponent(UITransform)?.setContentSize(600, 120);
+    const restart = this.createGradientButton('RestartButton', this.resultPanel, '🔄  再来一次', 480, 104, 40, 38);
+    restart.setPosition(0, -180, 0); restart.on(Button.EventType.CLICK, this.restart, this);
+    const home = this.createGradientButton('ResultHomeButton', this.resultPanel, '🏠 回主页', 230, 104, 40, 34, UiKit.CARD_ACCENTS.stats);
+    home.setPosition(-125, -290, 0); home.on(Button.EventType.CLICK, this.returnHome, this);
+    const share = this.createGradientButton('ResultShareButton', this.resultPanel, '📱 分享', 230, 104, 40, 34, UiKit.ACCENT_GRADIENT);
+    share.setPosition(125, -290, 0);
+    share.on(Button.EventType.CLICK, () => {
+      const best = this.gameManager ? Math.floor(this.gameManager.data.score) : 0;
+      PlatformService.share(`我在蹦蹦云跳到了 ${best} 分！`);
+    });
     this.resultOverlay.active = false;
   }
 
@@ -321,16 +343,17 @@ export class MinimalGameBootstrap extends Component {
     this.tutorialPanel = this.createGraphicsNode('FirstGameTutorial', 700, 720);
     this.tutorialPanel.setScale(DisplaySettings.getUiScale(), DisplaySettings.getUiScale(), 1);
     const panel = this.tutorialPanel.addComponent(Graphics);
-    panel.fillColor = new Color(34, 39, 94, 244);
-    panel.roundRect(-350, -360, 700, 720, 54); panel.fill();
-    panel.strokeColor = new Color(255, 255, 255, 72); panel.lineWidth = 3;
-    panel.roundRect(-346, -356, 692, 712, 51); panel.stroke();
-    this.createLabel('TutorialTitle', this.tutorialPanel, '第一次云端旅行', 48, new Vec3(0, 260, 0));
+    UiKit.drawDropShadow(panel, 700, 720, 48, 24, 128);
+    UiKit.fillRoundedVerticalGradient(panel, 700, 720, 48, UiKit.PANEL_GRADIENT);
+    panel.strokeColor = new Color(255, 255, 255, 26); panel.lineWidth = 3;
+    panel.roundRect(-346, -356, 692, 712, 46); panel.stroke();
+    const title = this.createLabel('TutorialTitle', this.tutorialPanel, '第一次云端旅行', 48, new Vec3(0, 260, 0));
+    UiKit.styleLabel(title);
     const steps = this.createLabel('TutorialSteps', this.tutorialPanel,
       '① 按住屏幕左侧 / 右侧控制方向\n\n② 落在云朵上会自动再次起跳\n\n③ 连续落云累积 Combo\n\n④ 弹簧云跳得更高，找准落点', 27, new Vec3(0, 35, 0));
     steps.node.getComponent(UITransform)?.setContentSize(610, 390);
     steps.lineHeight = 42;
-    const begin = this.createButton('TutorialBegin', this.tutorialPanel, '明白了，出发', 380, 94, new Color(255, 170, 112, 255), 31);
+    const begin = this.createGradientButton('TutorialBegin', this.tutorialPanel, '明白了，出发', 460, 104, 40, 36, UiKit.ACCENT_GRADIENT);
     begin.setPosition(0, -255, 0);
     begin.on(Button.EventType.CLICK, this.finishTutorial, this);
     this.tutorialPanel.active = false;
@@ -368,11 +391,25 @@ export class MinimalGameBootstrap extends Component {
     node.addComponent(Button); this.createLabel(`${name}Label`, node, text, size, Vec3.ZERO); this.addPressFeedback(node); return node;
   }
 
+  // 渐变胶囊按钮：UiKit 投影 + 渐变底 + 高光描边（HTML .btn 规格）
+  private createGradientButton(name: string, parent: Node, text: string, width: number, height: number, radius: number, fontSize: number, colors: readonly [string, string] = UiKit.PRIMARY_GRADIENT): Node {
+    const node = this.createGraphicsNode(name, width, height, parent);
+    const art = node.addComponent(Graphics);
+    UiKit.drawDropShadow(art, width, height, radius, 12, 90);
+    UiKit.fillRoundedVerticalGradient(art, width, height, radius, colors);
+    art.strokeColor = new Color(255, 255, 255, 51);
+    art.lineWidth = 2;
+    art.roundRect(-width * 0.5 + 2, -height * 0.5 + 2, width - 4, height - 4, Math.max(1, radius - 2));
+    art.stroke();
+    const label = this.createLabel(`${name}Label`, node, text, fontSize, Vec3.ZERO);
+    UiKit.styleLabel(label, { shadow: false });
+    node.addComponent(Button);
+    UiKit.pressFeedback(node, 0.95);
+    return node;
+  }
+
   private addPressFeedback(node: Node): void {
-    node.on(Node.EventType.TOUCH_START, () => node.setScale(0.94, 0.94, 1), this);
-    const restore = (): void => node.setScale(1, 1, 1);
-    node.on(Node.EventType.TOUCH_END, restore, this);
-    node.on(Node.EventType.TOUCH_CANCEL, restore, this);
+    UiKit.pressFeedback(node, 0.94);
   }
 
   private createNode(name: string, parent: Node = this.node): Node {

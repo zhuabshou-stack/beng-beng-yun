@@ -1,7 +1,7 @@
 import {
   _decorator, BlockInputEvents, Button, Camera, Color, Component, EventTouch, Graphics,
-  HorizontalTextAlignment, input, Input, Label, Node, Sprite, SpriteFrame, Tween, UIOpacity,
-  UITransform, Vec3, VerticalTextAlignment, math, tween, view,
+  HorizontalTextAlignment, input, Input, Label, Mask, Node, ScrollView, Sprite, SpriteFrame,
+  Tween, UIOpacity, UITransform, Vec3, VerticalTextAlignment, math, tween, view,
 } from 'cc';
 import { AudioManager } from '../core/AudioManager';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
@@ -250,8 +250,21 @@ export class HomeSceneBootstrap extends Component {
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
     SKINS.forEach((skin, index) => {
-      const item = this.createPanel(`Skin_${skin.id}`, panel, 230, 235, new Color(255, 255, 255, selected === index ? 34 : 16), 24);
+      const isSelected = selected === index;
+      const unlocked = coins >= skin.unlockCost;
+      const item = this.createPanel(`Skin_${skin.id}`, panel, 230, 235, new Color(255, 255, 255, isSelected ? 34 : 16), 24);
       item.setPosition((index % 3 - 1) * 260, 260 - Math.floor(index / 3) * 275, 0);
+      // HTML §3.3：选中 = #ffd700 边框 + 金色透明底
+      if (isSelected) {
+        const selectedBorder = item.getComponent(Graphics);
+        if (selectedBorder) {
+          selectedBorder.strokeColor = new Color(255, 215, 0, 230);
+          selectedBorder.lineWidth = 5;
+          selectedBorder.roundRect(-111, -113, 222, 226, 22);
+          selectedBorder.stroke();
+        }
+      }
+      if (!unlocked) item.addComponent(UIOpacity).opacity = 128;
       const preview = this.createNode(`Preview_${skin.id}`, item);
       preview.setPosition(0, 48, 0);
       const art = preview.addComponent(Graphics);
@@ -259,8 +272,7 @@ export class HomeSceneBootstrap extends Component {
       art.fillColor = Color.fromHEX(new Color(), skin.midColor); art.circle(-7, 8, 37); art.fill();
       art.fillColor = Color.fromHEX(new Color(), skin.eyeColor); art.circle(-12, 10, 4); art.circle(12, 10, 4); art.fill();
       this.createLabel(`Name_${skin.id}`, item, skin.name, 25, Color.WHITE).node.setPosition(0, -28, 0);
-      const unlocked = coins >= skin.unlockCost;
-      this.createLabel(`Lock_${skin.id}`, item, unlocked ? (selected === index ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost} 币`, 18, unlocked ? new Color(255, 229, 140, 255) : new Color(255, 255, 255, 100)).node.setPosition(0, -75, 0);
+      this.createLabel(`Lock_${skin.id}`, item, unlocked ? (isSelected ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost} 币`, 18, unlocked ? new Color(255, 229, 140, 255) : new Color(255, 255, 255, 100)).node.setPosition(0, -75, 0);
       const button = item.addComponent(Button);
       button.interactable = unlocked;
       if (unlocked) item.on(Button.EventType.CLICK, () => { StorageService.setNumber('cloudBounceSkin', index); this.openSkins(); }, this);
@@ -270,27 +282,58 @@ export class HomeSceneBootstrap extends Component {
   }
 
   private openSkills(): void {
-    const panel = this.openOverlay('SkillOverlay', '⚡ 技能商店', 900, 1500);
+    const panel = this.openOverlay('SkillOverlay', '⚡ 技能商店', 900, 1180);
     const data = LegacyProgression.loadSkills();
     const active = LegacyProgression.loadActiveSkills();
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
+    // HTML §3.5：横卡列表放进可滚动视窗（修复小屏溢出）
+    const viewNode = this.createNode('SkillScrollView', panel);
+    viewNode.addComponent(UITransform).setContentSize(800, 860);
+    viewNode.setPosition(0, -60, 0);
+    const mask = viewNode.addComponent(Mask);
+    mask.type = Mask.Type.GRAPHICS_STENCIL;
+    const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
+    maskArt.roundRect(-400, -430, 800, 860, 24);
+    maskArt.fill();
+    const content = this.createNode('SkillContent', viewNode);
+    const contentTransform = content.addComponent(UITransform);
+    contentTransform.setAnchorPoint(0.5, 1);
+    contentTransform.setContentSize(800, SKILLS.length * 190 + 20);
+    content.setPosition(0, 430, 0);
+    const scrollView = viewNode.addComponent(ScrollView);
+    scrollView.content = content;
+    scrollView.horizontal = false;
+    scrollView.vertical = true;
     SKILLS.forEach((skill, index) => {
       const entry = data[skill.id];
-      const card = this.createPanel(`Skill_${skill.id}`, panel, 760, 165, new Color(255, 255, 255, active.indexOf(skill.id) >= 0 ? 32 : 15), 24);
-      card.setPosition(0, 480 - index * 185, 0);
-      this.createLabel(`Icon_${skill.id}`, card, skill.icon, 47, Color.WHITE).node.setPosition(-315, 28, 0);
+      const equipped = active.indexOf(skill.id) >= 0;
+      const card = this.createPanel(`Skill_${skill.id}`, content, 760, 165, new Color(255, 255, 255, equipped ? 32 : 15), 24);
+      card.setPosition(0, -102 - index * 190, 0);
+      // HTML §3.5：图标 44×44 专属渐变底
+      const iconBlock = this.createNode(`IconBlock_${skill.id}`, card);
+      iconBlock.addComponent(UITransform).setContentSize(110, 110);
+      iconBlock.setPosition(-295, 0, 0);
+      const iconArt = iconBlock.addComponent(Graphics);
+      const gradient = UiKit.SKILL_GRADIENTS[skill.id] ?? UiKit.PRIMARY_GRADIENT;
+      UiKit.fillRoundedVerticalGradient(iconArt, 110, 110, 30, gradient);
+      this.createLabel(`Icon_${skill.id}`, iconBlock, skill.icon, 47, Color.WHITE).node.setPosition(0, 0, 0);
       const title = this.createLabel(`Title_${skill.id}`, card, `${skill.name}  Lv.${entry.level}`, 28, Color.WHITE);
-      title.horizontalAlign = HorizontalTextAlignment.LEFT; title.node.setPosition(-175, 39, 0);
+      UiKit.styleLabel(title, { shadow: false });
+      title.horizontalAlign = HorizontalTextAlignment.LEFT;
+      title.node.getComponent(UITransform)?.setContentSize(340, 40);
+      title.node.setPosition(-55, 45, 0);
       const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 19, new Color(255, 255, 255, 150));
-      desc.horizontalAlign = HorizontalTextAlignment.LEFT; desc.node.setPosition(-70, -20, 0); desc.node.getComponent(UITransform)?.setContentSize(520, 50);
-      const actionText = entry.owned ? (active.indexOf(skill.id) >= 0 ? '🟢 已装备' : '⚪ 点击装备')
+      desc.horizontalAlign = HorizontalTextAlignment.LEFT;
+      desc.node.getComponent(UITransform)?.setContentSize(360, 60);
+      desc.node.setPosition(-70, -25, 0);
+      const actionText = entry.owned ? (equipped ? '🟢 已装备' : '⚪ 点击装备')
         : skill.unlockLevel > 1 ? `通关 ${skill.unlockLevel} 关`
           : `需要 ${skill.coinCost} 💰`;
-      const action = this.createButton(`Action_${skill.id}`, card, actionText, 235, 62, new Color(102, 126, 234, 210), 19, 22);
-      action.setPosition(245, 38, 0);
+      const action = this.createGradientButton(`Action_${skill.id}`, card, actionText, 250, 66, 33, 22);
+      action.setPosition(240, 20, 0);
       action.on(Button.EventType.CLICK, () => this.handleSkillAction(skill.id, coins), this);
     });
-    this.addCloseButton(panel, -665);
+    this.addCloseButton(panel, -510);
   }
 
   private handleSkillAction(id: SkillId, coins: number): void {
@@ -309,16 +352,26 @@ export class HomeSceneBootstrap extends Component {
 
   private openRanking(): void {
     const panel = this.openOverlay('RankOverlay', '🏆 排行榜', 820, 1180);
+    // HTML §3.4：排行榜标题金色
+    const titleLabel = panel.getChildByName('RankOverlayTitle')?.getComponent(Label);
+    if (titleLabel) titleLabel.color = new Color(255, 215, 0, 255);
     const ranking = StorageService.getJSON<number[]>('cloudBounceRanking', []);
     if (ranking.length === 0) {
       this.createLabel('RankEmpty', panel, '🎮 暂无记录\n快去玩游戏创造你的分数吧！', 29, new Color(255, 255, 255, 110)).node.setPosition(0, 60, 0);
     } else ranking.slice(0, 10).forEach((score, index) => {
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`;
-      const row = this.createPanel(`Rank_${index}`, panel, 680, 72, new Color(255, 255, 255, index < 3 ? 20 : 8), 18);
+      // HTML §3.4：前三名整行金/银/铜底色
+      const rowColor = index === 0 ? new Color(255, 215, 0, 20)
+        : index === 1 ? new Color(192, 192, 192, 15)
+          : index === 2 ? new Color(205, 127, 50, 13)
+            : new Color(255, 255, 255, 8);
+      const row = this.createPanel(`Rank_${index}`, panel, 680, 72, rowColor, 18);
       row.setPosition(0, 385 - index * 82, 0);
       this.createLabel(`RankPos_${index}`, row, medal, 26, index === 0 ? new Color(255, 215, 0) : Color.WHITE).node.setPosition(-260, 0, 0);
       this.createLabel(`RankName_${index}`, row, '玩家', 23, new Color(255, 255, 255, 205)).node.setPosition(-70, 0, 0);
-      this.createLabel(`RankScore_${index}`, row, `${score}`, 26, new Color(255, 215, 0, 255)).node.setPosition(240, 0, 0);
+      const scoreLabel = this.createLabel(`RankScore_${index}`, row, `${score}`, 26, new Color(255, 215, 0, 255));
+      UiKit.styleLabel(scoreLabel, { shadow: false });
+      scoreLabel.node.setPosition(240, 0, 0);
     });
     this.addCloseButton(panel, -490);
   }
@@ -345,28 +398,33 @@ export class HomeSceneBootstrap extends Component {
 
   private openSettings(): void {
     const panel = this.openOverlay('SettingsOverlay', '⚙️ 设置', 760, 790);
-    const rows: Array<{ label: string; value: () => string; action: () => void }> = [
-      { label: '🔊 音效', value: () => AudioManager.soundEnabled ? '开' : '关', action: () => AudioManager.setSoundEnabled(!AudioManager.soundEnabled) },
-      { label: '🎵 音乐', value: () => AudioManager.musicEnabled ? '开' : '关', action: () => AudioManager.setMusicEnabled(!AudioManager.musicEnabled) },
-      { label: '🌙 深色模式', value: () => this.darkMode ? '开' : '关', action: () => {
-        this.darkMode = !this.darkMode;
-        StorageService.setJSON(HOME_DARK_MODE_KEY, this.darkMode);
-        this.redrawHomeGradient();
-      } },
+    // HTML §3.2：行 = 左标签 + 右开关（无文字值）
+    const rows: Array<{ label: string; value: () => boolean; apply: (next: boolean) => void }> = [
+      { label: '🔊 音效', value: () => AudioManager.soundEnabled, apply: (next) => AudioManager.setSoundEnabled(next) },
+      { label: '🎵 音乐', value: () => AudioManager.musicEnabled, apply: (next) => AudioManager.setMusicEnabled(next) },
+      {
+        label: '🌙 深色模式', value: () => this.darkMode, apply: (next) => {
+          this.darkMode = next;
+          StorageService.setJSON(HOME_DARK_MODE_KEY, this.darkMode);
+          this.redrawHomeGradient();
+        },
+      },
     ];
     rows.forEach((row, index) => {
-      const item = this.createPanel(`Setting_${index}`, panel, 620, 105, new Color(255, 255, 255, 8), 18);
-      item.setPosition(0, 145 - index * 125, 0);
-      const label = this.createLabel(`SettingLabel_${index}`, item, row.label, 26, new Color(255, 255, 255, 215));
-      label.horizontalAlign = HorizontalTextAlignment.LEFT; label.node.setPosition(-145, 0, 0);
-      const value = this.createLabel(`SettingValue_${index}`, item, row.value(), 23, new Color(180, 195, 255, 220));
-      value.horizontalAlign = HorizontalTextAlignment.RIGHT; value.node.setPosition(200, 0, 0);
-      item.addComponent(Button);
-      item.on(Button.EventType.CLICK, () => {
-        row.action();
-        value.string = row.value();
-      }, this);
-      this.addPressFeedback(item);
+      const y = 225 - index * 165;
+      const label = this.createLabel(`SettingLabel_${index}`, panel, row.label, 32, new Color(255, 255, 255, 204));
+      UiKit.styleLabel(label, { shadow: false });
+      label.horizontalAlign = HorizontalTextAlignment.LEFT;
+      label.node.getComponent(UITransform)?.setContentSize(400, 60);
+      label.node.setPosition(-280, y, 0);
+      UiKit.createToggle(panel, 265, y, row.value(), (setOn) => {
+        const next = !row.value();
+        row.apply(next);
+        setOn(next);
+      });
+      // 命名为 Setting_N，便于自动化回归定位
+      const toggleNode = panel.children[panel.children.length - 1];
+      toggleNode.name = `Setting_${index}`;
     });
     this.addCloseButton(panel, -300);
   }
@@ -377,16 +435,31 @@ export class HomeSceneBootstrap extends Component {
     this.overlay.addComponent(UITransform).setContentSize(this.viewportWidth, this.viewportHeight);
     this.overlay.addComponent(BlockInputEvents);
     this.blockTouchPropagation(this.overlay);
-    const veil = this.overlay.addComponent(Graphics); veil.fillColor = new Color(0, 0, 0, 178); veil.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight); veil.fill();
-    const panel = this.createPanel(`${name}Panel`, this.overlay, width, height, new Color(26, 26, 46, 250), 48);
-    this.createLabel(`${name}Title`, panel, title, 43, Color.WHITE).node.setPosition(0, height * 0.5 - 85, 0);
+    // HTML §3.1：遮罩黑 50% + 面板渐变底/圆角 24/白 10% 边/大投影
+    const veil = this.overlay.addComponent(Graphics);
+    veil.fillColor = new Color(0, 0, 0, 128);
+    veil.rect(-this.viewportWidth * 0.5, -this.viewportHeight * 0.5, this.viewportWidth, this.viewportHeight);
+    veil.fill();
+    const panel = this.createNode(`${name}Panel`, this.overlay);
+    panel.addComponent(UITransform).setContentSize(width, height);
+    const panelArt = panel.addComponent(Graphics);
+    UiKit.drawDropShadow(panelArt, width, height, 48, 24, 128);
+    UiKit.fillRoundedVerticalGradient(panelArt, width, height, 48, UiKit.PANEL_GRADIENT);
+    panelArt.strokeColor = new Color(255, 255, 255, 26);
+    panelArt.lineWidth = 3;
+    panelArt.roundRect(-width * 0.5 + 2, -height * 0.5 + 2, width - 4, height - 4, 46);
+    panelArt.stroke();
+    const titlelabel = this.createLabel(`${name}Title`, panel, title, 43, Color.WHITE);
+    UiKit.styleLabel(titlelabel);
+    titlelabel.node.setPosition(0, height * 0.5 - 85, 0);
     panel.setScale(0.92, 0.92, 1);
-    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+    tween(panel).to(0.3, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
     return panel;
   }
 
   private addCloseButton(panel: Node, y: number): void {
-    const close = this.createButton('CloseButton', panel, '关闭', 320, 78, new Color(255, 255, 255, 28), 26, 28);
+    // HTML §3.1 关闭按钮：整宽灰底圆角 14
+    const close = this.createButton('CloseButton', panel, '关闭', 480, 96, new Color(255, 255, 255, 26), 28, 34);
     close.setPosition(0, y, 0);
     close.on(Button.EventType.CLICK, this.closeOverlay, this);
   }
@@ -520,6 +593,24 @@ export class HomeSceneBootstrap extends Component {
     node.addComponent(Button);
     this.createLabel(`${name}Label`, node, text, fontSize, Color.WHITE);
     this.addPressFeedback(node);
+    return node;
+  }
+
+  // 渐变胶囊按钮：UiKit 投影 + 渐变底 + 高光描边（HTML .btn 规格）
+  private createGradientButton(name: string, parent: Node, text: string, width: number, height: number, radius: number, fontSize: number, colors: readonly [string, string] = UiKit.PRIMARY_GRADIENT): Node {
+    const node = this.createNode(name, parent);
+    node.addComponent(UITransform).setContentSize(width, height);
+    const art = node.addComponent(Graphics);
+    UiKit.drawDropShadow(art, width, height, radius, 10, 80);
+    UiKit.fillRoundedVerticalGradient(art, width, height, radius, colors);
+    art.strokeColor = new Color(255, 255, 255, 51);
+    art.lineWidth = 2;
+    art.roundRect(-width * 0.5 + 2, -height * 0.5 + 2, width - 4, height - 4, Math.max(1, radius - 2));
+    art.stroke();
+    const label = UiKit.label(node, `${name}Label`, text, fontSize, Color.WHITE, { shadow: false });
+    label.node.setPosition(0, 0, 0);
+    node.addComponent(Button);
+    UiKit.pressFeedback(node, 0.95);
     return node;
   }
 

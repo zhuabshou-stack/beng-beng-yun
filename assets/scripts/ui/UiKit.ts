@@ -1,5 +1,5 @@
 import {
-  Color, Graphics, HorizontalTextAlignment, Label, Node, UITransform,
+  Button, Color, Graphics, HorizontalTextAlignment, Label, Node, UITransform,
   Vec2, Vec3, VerticalTextAlignment,
 } from 'cc';
 
@@ -16,8 +16,10 @@ export class UiKit {
   // —— 渐变（135° 对角在竖屏上以垂直色带近似，128 段静态绘制一次）——
   static readonly PANEL_GRADIENT = ['#1a1a2e', '#16213e'];
   static readonly RANK_PANEL_GRADIENT = ['#1a1a2e', '#16213e', '#0f3460'];
-  static readonly PRIMARY_GRADIENT = ['#667eea', '#764ba2'];
+  static readonly PRIMARY_GRADIENT: readonly [string, string] = ['#667eea', '#764ba2'];
   static readonly START_GRADIENT = ['#f093fb', '#f5576c', '#ff6b6b'];
+  // 强调双色（粉→红，HTML btn-secondary）
+  static readonly ACCENT_GRADIENT: readonly [string, string] = ['#f093fb', '#f5576c'];
   static readonly PROGRESS_GRADIENT = ['#f093fb', '#ffd166'];
   static readonly GOLD = '#ffd700';
   static readonly COMBO_RED = '#ff6b6b';
@@ -38,6 +40,16 @@ export class UiKit {
   static readonly TITLE_SHADOW = new Color(0, 0, 0, 77);
   static readonly HUD_TEXT_SHADOW = new Color(0, 0, 0, 128);
   static readonly COMBO_SHADOW = new Color(255, 100, 100, 102);
+
+  // —— 技能图标专属渐变（HTML §1.2 六色）——
+  static readonly SKILL_GRADIENTS: Record<string, [string, string]> = {
+    shield: ['#74b9ff', '#0984e3'],
+    magnet: ['#fd79a8', '#e84393'],
+    slowmo: ['#a29bfe', '#6c5ce7'],
+    ghost: ['#dfe6e9', '#b2bec3'],
+    doubleJump: ['#55efc4', '#00b894'],
+    timeWarp: ['#fdcb6e', '#e17055'],
+  };
 
   static sampleGradient(colors: readonly (string | Color)[], t: number): Color {
     const clamped = Math.max(0, Math.min(1, t));
@@ -156,5 +168,33 @@ export class UiKit {
     const restoreScale = (): void => node.setScale(restore);
     node.on(Node.EventType.TOUCH_END, restoreScale);
     node.on(Node.EventType.TOUCH_CANCEL, restoreScale);
+  }
+
+  // 开关控件（HTML §3.2：轨道 50×28、滑块 22，开=主渐变；尺寸按 1080 设计放大 2.57 倍）
+  static createToggle(parent: Node, centerX: number, centerY: number, isOn: boolean, onChange: (setOn: (on: boolean) => void) => void): Node {
+    const track = new Node('Toggle');
+    track.parent = parent;
+    track.layer = parent.layer;
+    track.addComponent(UITransform).setContentSize(128, 72);
+    track.setPosition(centerX, centerY, 0);
+    const art = track.addComponent(Graphics);
+    const draw = (on: boolean): void => {
+      art.clear();
+      if (on) {
+        UiKit.fillRoundedVerticalGradient(art, 128, 72, 36, UiKit.PRIMARY_GRADIENT);
+      } else {
+        art.fillColor = new Color(255, 255, 255, 38);
+        art.roundRect(-64, -36, 128, 72, 36);
+        art.fill();
+      }
+      art.fillColor = Color.WHITE;
+      art.circle(on ? 28 : -28, 0, 28);
+      art.fill();
+    };
+    draw(isOn);
+    const button = track.addComponent(Button);
+    button.transition = Button.Transition.NONE;
+    track.on(Button.EventType.CLICK, () => onChange(draw));
+    return track;
   }
 }
