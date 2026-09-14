@@ -3,7 +3,7 @@ import {
   HorizontalTextAlignment, Label, Node, Sprite, SpriteFrame, Tween, UITransform, Vec3,
   VerticalTextAlignment, tween, view,
 } from 'cc';
-import { GAME, SKILLS, SkillId } from '../core/GameConfig';
+import { GAME, SKILLS, SkillId, levelTargetFor } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
 import { DisplaySettings } from '../core/DisplaySettings';
 import { AudioManager } from '../core/AudioManager';
@@ -106,7 +106,7 @@ export class DreamyHUD extends Component {
       this.lastStars = data.stars;
     }
     this.updateCombo(data.combo);
-    const levelTarget = GAME.levelTarget * this.gameManager.currentLevel;
+    const levelTarget = levelTargetFor(this.gameManager.currentLevel);
     const progress = Math.min(1, score / levelTarget);
     if (Math.abs(progress - this.lastProgress) > 0.001) {
       this.lastProgress = progress;

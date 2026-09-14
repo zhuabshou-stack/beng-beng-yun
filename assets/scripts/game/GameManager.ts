@@ -2,7 +2,7 @@ import {
   _decorator, Component, Node, EventKeyboard, EventTouch, input, Input, KeyCode,
   UITransform, Vec3, view, warn,
 } from 'cc';
-import { GAME, SKILLS, SkillId } from '../core/GameConfig';
+import { GAME, SKILLS, SkillId, levelSpeedScale, levelTargetFor } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
 import { GameData } from '../core/GameData';
 import { PlayerController } from './PlayerController';
@@ -69,6 +69,8 @@ export class GameManager extends Component {
   private nextMilestoneIndex = 0;
   private nextLevelTarget: number = GAME.levelTarget;
   currentLevel = 1;
+  // 本关已游玩时长（未缩放），用于开局保护期渐入
+  private levelPlayTime = 0;
   private gameTime = 0;
   private shieldActive = false;
   private ghostRemaining = 0;
@@ -137,7 +139,8 @@ export class GameManager extends Component {
     this.runPlayTime = 0;
     this.recordedPlayTime = 0;
     this.nextMilestoneIndex = 0;
-    this.nextLevelTarget = GAME.levelTarget * this.currentLevel;
+    this.nextLevelTarget = levelTargetFor(this.currentLevel);
+    this.levelPlayTime = 0;
     this.gameTime = 0;
     this.shieldActive = false;
     this.ghostRemaining = 0;
@@ -193,7 +196,11 @@ export class GameManager extends Component {
 
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
-    let remaining = Math.min(Math.max(0, dt), GAME.physicsMaxFrameDelta);
+    // v2.13 关卡节奏：逐关时间加速 + 开局保护期渐入（弹道形状不变，整体节奏加快）
+    const speed = levelSpeedScale(this.currentLevel);
+    const grace = Math.min(1, this.levelPlayTime / GAME.levelGraceSeconds);
+    this.levelPlayTime += dt;
+    let remaining = Math.min(Math.max(0, dt * speed * grace), GAME.physicsMaxFrameDelta * Math.max(1, speed * grace));
     while (remaining > 0 && this.phase === 'playing') {
       const step = Math.min(remaining, GAME.physicsMaxStep);
       this.simulateStep(step);
