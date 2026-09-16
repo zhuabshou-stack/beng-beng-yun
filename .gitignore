@@ -64,3 +64,8 @@ private.config.*
 # 项目历史版本只保存在工作区外的只读备份目录
 版本备份/
 **/版本备份/
+
+# 内部协作文档（公开仓库不含 AI 协作印记与交接信息，本地保留）
+AGENTS.md
+docs/HANDOFF.md
+docs/GITHUB_SYNC.md
