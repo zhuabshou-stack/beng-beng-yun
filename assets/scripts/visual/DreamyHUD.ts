@@ -234,10 +234,10 @@ export class DreamyHUD extends Component {
     this.node.getChildByName('HomeButton')?.setPosition(-halfWidth + safe.left / scale + 100, top, 0);
     this.node.getChildByName('PauseButton')?.setPosition(-halfWidth + safe.left / scale + 255, top, 0);
     this.node.getChildByName('SettingsButton')?.setPosition(-halfWidth + safe.left / scale + 410, top, 0);
-    this.node.getChildByName('ScoreChip')?.setPosition(0, top + 14, 0);
+    this.node.getChildByName('ScoreChip')?.setPosition(0, top - 110, 0);
     this.node.getChildByName('CoinChip')?.setPosition(halfWidth - safe.right / scale - 105, top + 3, 0);
-    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 190, 0);
-    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 255, 0);
+    this.node.getChildByName('RunStatsChip')?.setPosition(0, top - 250, 0);
+    this.node.getChildByName('ComboLabel')?.setPosition(0, top - 315, 0);
     this.skillBar?.setPosition(halfWidth - safe.right / scale - 85, top, 0);
     this.node.getChildByName('LevelProgressBar')?.setPosition(0, -halfHeight + safe.bottom / scale + 54, 0);
     this.node.getChildByName('VersionLabel')?.setPosition(halfWidth - safe.right / scale - 62, -halfHeight + safe.bottom / scale + 20, 0);

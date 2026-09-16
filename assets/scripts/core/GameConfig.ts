@@ -1,5 +1,5 @@
 export const GAME = Object.freeze({
-  version: '2.14.0',
+  version: '2.14.1',
   // HTML v2.1.1 是本分支的唯一玩法规格。原版使用 60 FPS 帧单位；
   // Cocos 世界统一放大 2 倍，再换算为秒单位，保留相同的相对跳高和云间距。
   legacyReferenceFps: 60,
@@ -38,10 +38,9 @@ export const GAME = Object.freeze({
   deathMargin: 200,
   levelTarget: 200,
   levelRewardCoins: 50,
-  // v2.13 关卡节奏：逐关时间加速（有封顶）、开局保护渐入、目标分渐进——确保"一关比一关快且过得去"
-  levelSpeedStep: 0.07,
-  levelSpeedCap: 2.0,
-  levelGraceSeconds: 3,
+  // v2.13 关卡节奏：逐关时间加速（有封顶）、目标分渐进——直接满速开局，无保护渐入
+  levelSpeedStep: 0.045,
+  levelSpeedCap: 1.6,
   levelTargetGrowth: 1.25,
   // v2.14 爽感核心：完美落点→连击暴走、空中事件道具
   perfectZoneRatio: 0.18,
@@ -55,9 +54,13 @@ export const GAME = Object.freeze({
   giantScale: 1.6,
   giantCollectChance: 0.035,
   tornadoCollectChance: 0.045,
-  // v2.15 难度波浪：10 关一周期（3 简单+4 中等+2 难+1 松弛大爽关）
-  levelWaveTable: Object.freeze([0.92, 0.95, 0.98, 1.0, 1.03, 1.06, 1.09, 1.12, 1.16, 0.9]),
+  // v2.15 难度波浪：10 关一周期（幅度收敛：微起伏而非大起大落）
+  levelWaveTable: Object.freeze([0.95, 0.97, 0.98, 1.0, 1.02, 1.04, 1.06, 1.08, 1.12, 0.92]),
   medals: Object.freeze([200, 500, 1000, 2000]),
+  // v2.14.1 地雷：踩中引信 0.9s → 爆炸炸毁脚下及相邻台阶；15% 哑弹只做减害
+  mineSpawnChance: 0.08,
+  mineFuseSeconds: 0.9,
+  mineDudChance: 0.15,
   springJumpMultiplier: 2,
   comboResetFallSpeed: 120,
   // HTML 原版保持固定速度；以下增量仅实现本轮明确要求，并以原版速度为 1.0 基准。

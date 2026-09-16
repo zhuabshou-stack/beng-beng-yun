@@ -333,18 +333,18 @@ export class HomeSceneBootstrap extends Component {
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
     // 10 款皮肤 4 行，放进可滚动视窗（滚轮/滑动），关闭按钮固定在面板底部
     const viewNode = this.createNode('SkinScrollView', panel);
-    viewNode.addComponent(UITransform).setContentSize(848, 880);
-    viewNode.setPosition(0, -75, 0);
+    viewNode.addComponent(UITransform).setContentSize(848, 780);
+    viewNode.setPosition(0, -55, 0);
     const mask = viewNode.addComponent(Mask);
     mask.type = Mask.Type.GRAPHICS_STENCIL;
     const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
-    maskArt.roundRect(-424, -440, 848, 880, 24);
+    maskArt.roundRect(-424, -390, 848, 780, 24);
     maskArt.fill();
     const content = this.createNode('SkinContent', viewNode);
     const contentTransform = content.addComponent(UITransform);
     contentTransform.setAnchorPoint(0.5, 1);
     contentTransform.setContentSize(848, Math.ceil(SKINS.length / 3) * 415 + 20);
-    content.setPosition(0, 440, 0);
+    content.setPosition(0, 390, 0);
     const scrollView = viewNode.addComponent(ScrollView);
     scrollView.content = content;
     scrollView.horizontal = false;
@@ -381,7 +381,7 @@ export class HomeSceneBootstrap extends Component {
       if (unlocked) item.on(Button.EventType.CLICK, () => { StorageService.setNumber('cloudBounceSkin', index); this.openSkins(); }, this);
       this.addPressFeedback(item);
     });
-    this.addCloseButton(panel, -520, 848);
+    this.addCloseButton(panel, -545, 848);
   }
 
   private openSkills(): void {
@@ -391,18 +391,18 @@ export class HomeSceneBootstrap extends Component {
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     // HTML §3.5：横卡列表放进可滚动视窗（修复小屏溢出）
     const viewNode = this.createNode('SkillScrollView', panel);
-    viewNode.addComponent(UITransform).setContentSize(848, 880);
-    viewNode.setPosition(0, -75, 0);
+    viewNode.addComponent(UITransform).setContentSize(848, 780);
+    viewNode.setPosition(0, -55, 0);
     const mask = viewNode.addComponent(Mask);
     mask.type = Mask.Type.GRAPHICS_STENCIL;
     const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
-    maskArt.roundRect(-424, -440, 848, 880, 24);
+    maskArt.roundRect(-424, -390, 848, 780, 24);
     maskArt.fill();
     const content = this.createNode('SkillContent', viewNode);
     const contentTransform = content.addComponent(UITransform);
     contentTransform.setAnchorPoint(0.5, 1);
     contentTransform.setContentSize(848, SKILLS.length * 210 + 20);
-    content.setPosition(0, 440, 0);
+    content.setPosition(0, 390, 0);
     const scrollView = viewNode.addComponent(ScrollView);
     scrollView.content = content;
     scrollView.horizontal = false;
@@ -425,9 +425,10 @@ export class HomeSceneBootstrap extends Component {
       title.horizontalAlign = HorizontalTextAlignment.LEFT;
       title.node.getComponent(UITransform)?.setContentSize(400, 50);
       title.node.setPosition(-50, 52, 0);
-      const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 33, new Color(255, 255, 255, 150));
+      const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 30, new Color(255, 255, 255, 150));
       desc.horizontalAlign = HorizontalTextAlignment.LEFT;
-      desc.node.getComponent(UITransform)?.setContentSize(400, 70);
+      desc.overflow = Label.Overflow.SHRINK;
+      desc.node.getComponent(UITransform)?.setContentSize(390, 70);
       desc.node.setPosition(-75, -30, 0);
       const actionText = entry.owned ? (equipped ? '🟢 已装备' : '⚪ 点击装备')
         : skill.unlockLevel > 1 ? `通关 ${skill.unlockLevel} 关`
@@ -436,7 +437,7 @@ export class HomeSceneBootstrap extends Component {
       action.setPosition(270, 25, 0);
       action.on(Button.EventType.CLICK, () => this.handleSkillAction(skill.id, coins), this);
     });
-    this.addCloseButton(panel, -530, 848);
+    this.addCloseButton(panel, -545, 848);
   }
 
   private handleSkillAction(id: SkillId, coins: number): void {
@@ -488,7 +489,7 @@ export class HomeSceneBootstrap extends Component {
   }
 
   private openStats(): void {
-    const panel = this.openOverlay('StatsOverlay', '📊 我的统计', 752, 1180);
+    const panel = this.openOverlay('StatsOverlay', '📊 我的统计', 752, 1240);
     const skills = LegacyProgression.loadSkills();
     const rows = [
       ['🪙 总金币', `${StorageService.getNumber('cloudBounceCoins', 0)}`],
@@ -514,7 +515,7 @@ export class HomeSceneBootstrap extends Component {
       const done = progress >= task.target;
       const claimed = daily.claimed[index];
       const row = this.createPanel(`Task_${index}`, panel, 628, 111, new Color(255, 255, 255, done && !claimed ? 20 : 8), 22);
-      row.setPosition(0, -215 - index * 128, 0);
+      row.setPosition(0, -215 - index * 118, 0);
       const label = this.createLabel(`TaskLabel_${index}`, row, task.label, 34, new Color(255, 255, 255, 204));
       label.horizontalAlign = HorizontalTextAlignment.LEFT;
       label.node.getComponent(UITransform)?.setContentSize(400, 50);

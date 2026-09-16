@@ -16,6 +16,7 @@ export class CollectibleManager extends Component {
   private readonly featherPool: Collectible[] = [];
   private readonly tornadoPool: Collectible[] = [];
   private readonly giantPool: Collectible[] = [];
+  private readonly minePool: Collectible[] = [];
   private readonly spawnPosition = new Vec3();
 
   configure(coinSpriteFrame: SpriteFrame | null, starSpriteFrame: SpriteFrame | null): void {
@@ -27,6 +28,7 @@ export class CollectibleManager extends Component {
       this.prewarm('feather', 4);
       this.prewarm('tornado', 2);
       this.prewarm('giant', 2);
+      this.prewarm('mine', 3);
     }
   }
 
@@ -43,6 +45,7 @@ export class CollectibleManager extends Component {
     if (Math.random() < GAME.featherSpawnChance) this.spawnAboveCloud('feather', cloud, 70);
     if (Math.random() < GAME.tornadoCollectChance) this.spawnAboveCloud('tornado', cloud, 78);
     if (Math.random() < GAME.giantCollectChance) this.spawnAboveCloud('giant', cloud, 78);
+    if (Math.random() < GAME.mineSpawnChance && cloud.type !== 'spring') this.spawnAboveCloud('mine', cloud, 46);
   }
 
   collectTouching(
@@ -106,7 +109,7 @@ export class CollectibleManager extends Component {
   }
 
   private createItem(type: CollectibleType): Collectible {
-    const node = new Node(type === 'coin' ? 'Coin' : type === 'star' ? 'Star' : type === 'tornado' ? 'Tornado' : type === 'giant' ? 'Giant' : 'Feather');
+    const node = new Node(type === 'coin' ? 'Coin' : type === 'star' ? 'Star' : type === 'tornado' ? 'Tornado' : type === 'giant' ? 'Giant' : type === 'mine' ? 'Mine' : 'Feather');
     node.parent = this.node;
     node.layer = this.node.layer;
     node.active = false;
@@ -114,7 +117,7 @@ export class CollectibleManager extends Component {
   }
 
   private poolFor(type: CollectibleType): Collectible[] {
-    return type === 'coin' ? this.coinPool : type === 'star' ? this.starPool : type === 'tornado' ? this.tornadoPool : type === 'giant' ? this.giantPool : this.featherPool;
+    return type === 'coin' ? this.coinPool : type === 'star' ? this.starPool : type === 'tornado' ? this.tornadoPool : type === 'giant' ? this.giantPool : type === 'mine' ? this.minePool : this.featherPool;
   }
 
   private releaseAt(index: number): void {

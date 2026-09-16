@@ -49,6 +49,7 @@ export class GameManager extends Component {
   phase: GamePhase = 'idle';
   onLandingFeedback: ((feedback: LandingFeedback) => void) | null = null;
   onCollectibleFeedback: ((type: CollectibleType, position: Vec3) => void) | null = null;
+  onExplosion: ((position: Vec3) => void) | null = null;
   onMilestone: ((score: number, position: Vec3) => void) | null = null;
   onLevelComplete: ((level: number, position: Vec3) => void) | null = null;
   onRunStarted: ((position: Vec3) => void) | null = null;
@@ -79,6 +80,8 @@ export class GameManager extends Component {
   private surgeRemaining = 0;
   private tornadoRemaining = 0;
   private giantRemaining = 0;
+  private mineFuse = -1;
+  private readonly minePosition = new Vec3();
   private ghostRemaining = 0;
   private slowmoRemaining = 0;
   private magnetRemaining = 0;
@@ -213,12 +216,10 @@ export class GameManager extends Component {
 
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
-    // v2.13 关卡节奏：逐关时间加速 + 开局保护期渐入（弹道形状不变，整体节奏加快）
+    // v2.13 关卡节奏：逐关时间加速（直接满速开局）
     // v2.15 隐藏 DDA：同关连败 3 次后小幅降速（绝不外显）
     const speed = levelSpeedScale(this.currentLevel) * (MetaService.ddaActive(this.currentLevel) ? 0.92 : 1);
-    const grace = Math.min(1, this.levelPlayTime / GAME.levelGraceSeconds);
-    this.levelPlayTime += dt;
-    let remaining = Math.min(Math.max(0, dt * speed * grace), GAME.physicsMaxFrameDelta * Math.max(1, speed * grace));
+    let remaining = Math.min(Math.max(0, dt * speed), GAME.physicsMaxFrameDelta * Math.max(1, speed));
     while (remaining > 0 && this.phase === 'playing') {
       const step = Math.min(remaining, GAME.physicsMaxStep);
       this.simulateStep(step);
@@ -240,6 +241,10 @@ export class GameManager extends Component {
     if (this.giantRemaining > 0) {
       this.giantRemaining = Math.max(0, this.giantRemaining - dt);
       if (this.giantRemaining === 0) this.player.setGiant(false);
+    }
+    if (this.mineFuse >= 0) {
+      this.mineFuse -= dt;
+      if (this.mineFuse < 0) this.explodeMine();
     }
     this.saveHistory(dt);
     this.player.simulate(dt, this.viewportWidth, this.slowmoRemaining > 0 ? 0.5 : 1);
@@ -432,9 +437,47 @@ export class GameManager extends Component {
       this.giantRemaining = GAME.giantDuration;
       this.player?.setGiant(true);
       this.onSkillToast?.('🟣 巨型化！落点更宽');
+    } else if (type === 'mine') {
+      this.armMine(position);
     } else this.featherRemaining = GAME.featherGlideDuration;
     this.onCollectibleFeedback?.(type, position);
     AudioManager.playSound(type === 'coin' || type === 'star' ? type : 'star');
+  }
+
+  // 地雷：踩中点燃引信，0.9s 后爆炸（护盾期被炸会被弹开而非坠落）
+  private armMine(position: Vec3): void {
+    if (this.mineFuse >= 0) return;
+    if (Math.random() < GAME.mineDudChance) {
+      this.onSkillToast?.('💧 哑弹…好险');
+      return;
+    }
+    this.mineFuse = GAME.mineFuseSeconds;
+    this.minePosition.set(position);
+    this.onSkillToast?.('💥 地雷！快弹离');
+    AudioManager.playSound('ui');
+  }
+
+  private explodeMine(): void {
+    this.mineFuse = -1;
+    this.onExplosion?.(this.minePosition.clone());
+    AudioManager.playSound('explode');
+    const range = GAME.cloudGap * 1.6;
+    for (const cloud of this.cloudManager.clouds) {
+      if (cloud.broken || !cloud.node.active) continue;
+      if (Math.abs(cloud.node.position.y - this.minePosition.y) <= range) {
+        cloud.breakApart();
+        cloud.broken = true;
+      }
+    }
+    if (this.player && Math.abs(this.player.node.position.y - this.minePosition.y) <= range * 1.2) {
+      if (this.shieldActive) {
+        this.shieldActive = false;
+        this.player.velocity.y = GAME.shieldBounceVelocity;
+        this.onSkillToast?.('🛡️ 护盾抵住爆炸！');
+      } else {
+        this.player.velocity.y = -260;
+      }
+    }
   }
 
   private finishRun(): void {

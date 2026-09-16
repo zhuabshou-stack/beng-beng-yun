@@ -12,6 +12,7 @@ const SOUND_FILES: ReadonlyArray<readonly [SoundCue, string]> = [
   ['combo', 'audio/combo'],
   ['milestone', 'audio/milestone'],
   ['gameOver', 'audio/gameOver'],
+  ['explode', 'audio/explode'],
 ];
 
 const MUSIC_PATH = 'audio/bgm';

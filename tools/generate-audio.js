@@ -121,6 +121,24 @@ const generators = {
     [659, 523, 440, 349].forEach((freq, i) => tone(buf, freq, i * 0.15, 0.24, 0.42, 0.01, 0.16));
     return buf;
   },
+  // 爆炸：低频冲击 + 白噪碎裂（0.5s，休闲游戏爆炸音标准结构）
+  'explode.wav': () => {
+    const length = seconds(0.5);
+    const buf = new Float64Array(length);
+    let seed = 7;
+    const noise = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return (seed / 2147483648) * 2 - 1;
+    };
+    for (let i = 0; i < length; i += 1) {
+      const t = i / SAMPLE_RATE;
+      const progress = i / length;
+      const boom = Math.sin(2 * Math.PI * (95 - 55 * progress) * t) * Math.exp(-6 * progress);
+      const crackle = noise() * Math.exp(-9 * progress);
+      buf[i] = (boom * 0.8 + crackle * 0.4) * 0.75;
+    }
+    return buf;
+  },
   // BGM：C-Am-F-G 四和弦垫 + 柔和琶音，和弦窗口首尾相接可无缝循环
   'bgm.wav': () => {
     const chordDur = 2.4;

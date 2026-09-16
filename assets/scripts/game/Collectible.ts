@@ -1,13 +1,14 @@
 import { _decorator, Color, Component, Graphics, Sprite, SpriteFrame, UITransform, Vec3 } from 'cc';
 const { ccclass } = _decorator;
 
-export type CollectibleType = 'coin' | 'star' | 'feather' | 'tornado' | 'giant';
+export type CollectibleType = 'coin' | 'star' | 'feather' | 'tornado' | 'giant' | 'mine';
 
 @ccclass('Collectible')
 export class Collectible extends Component {
   type: CollectibleType = 'coin';
   radius = 22;
   collected = false;
+  armed = false; // 引信已点燃：红灯加速闪烁
   private elapsed = 0;
   private readonly origin = new Vec3();
   private readonly animatedPosition = new Vec3();
@@ -19,7 +20,7 @@ export class Collectible extends Component {
     starSpriteFrame: SpriteFrame | null,
   ): void {
     this.type = type;
-    this.radius = type === 'star' || type === 'tornado' || type === 'giant' ? 20 : type === 'feather' ? 20 : 12;
+    this.radius = type === 'star' || type === 'tornado' || type === 'giant' || type === 'mine' ? 20 : type === 'feather' ? 20 : 12;
     this.collected = false;
     this.elapsed = Math.random() * Math.PI * 2;
     this.origin.set(position);
@@ -35,7 +36,8 @@ export class Collectible extends Component {
     this.animatedPosition.set(this.origin);
     this.animatedPosition.y += Math.sin(this.elapsed * 3.4) * 8;
     this.node.setPosition(this.animatedPosition);
-    const pulse = 1 + Math.sin(this.elapsed * 4.2) * (this.type === 'star' ? 0.08 : 0.05);
+    const pulseBase = this.armed ? 6.5 : 4.2;
+    const pulse = 1 + Math.sin(this.elapsed * pulseBase) * (this.type === 'star' ? 0.08 : 0.05) + (this.armed ? Math.sin(this.elapsed * 22) * 0.09 : 0);
     this.node.setScale(pulse, pulse, 1);
     this.node.setRotationFromEuler(0, 0, this.type === 'star' ? this.elapsed * 34 : Math.sin(this.elapsed * 2) * (this.type === 'feather' ? 17 : 7));
   }
@@ -66,6 +68,7 @@ export class Collectible extends Component {
     else if (this.type === 'star') this.drawStar(graphics);
     else if (this.type === 'tornado') this.drawTornado(graphics);
     else if (this.type === 'giant') this.drawGiant(graphics);
+    else if (this.type === 'mine') this.drawMine(graphics);
     else this.drawFeather(graphics);
   }
 
@@ -95,6 +98,28 @@ export class Collectible extends Component {
     }
     graphics.fillColor = new Color(255, 138, 168, 255);
     graphics.circle(0, 0, 8);
+    graphics.fill();
+  }
+
+  // 地雷（敌人层专属配色：黑体红刺，专属红色不与任何可踩元素混同）
+  private drawMine(graphics: Graphics): void {
+    graphics.fillColor = new Color(255, 70, 70, 60);
+    graphics.circle(0, 0, 30);
+    graphics.fill();
+    graphics.fillColor = new Color(40, 34, 40, 255);
+    graphics.circle(0, 0, 19);
+    graphics.fill();
+    graphics.strokeColor = new Color(255, 82, 82, 255);
+    graphics.lineWidth = 4;
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (i / 8) * Math.PI * 2;
+      graphics.moveTo(Math.cos(angle) * 19, Math.sin(angle) * 19);
+      graphics.lineTo(Math.cos(angle) * 27, Math.sin(angle) * 27);
+    }
+    graphics.stroke();
+    const blink = 150 + Math.round(Math.sin(this.elapsed * (this.armed ? 26 : 8)) * 105);
+    graphics.fillColor = new Color(255, 60, 60, blink);
+    graphics.circle(0, 0, 7);
     graphics.fill();
   }
 

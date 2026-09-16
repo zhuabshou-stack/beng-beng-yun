@@ -143,6 +143,7 @@ export class MinimalGameBootstrap extends Component {
     visualEffects.configure(this.player, this.gameManager, this.world);
     this.gameManager.onLandingFeedback = (feedback) => visualEffects.playLandingFeedback(feedback);
     this.gameManager.onCollectibleFeedback = (type, position) => visualEffects.playCollectibleFeedback(type, position);
+    this.gameManager.onExplosion = (position) => visualEffects.playExplosion(position);
     this.gameManager.onMilestone = (score, position) => visualEffects.playMilestoneFeedback(score, position);
     this.gameManager.onRunStarted = (position) => visualEffects.playStartFeedback(position);
     this.gameManager.onRestartRequested = () => this.restart();
@@ -176,6 +177,7 @@ export class MinimalGameBootstrap extends Component {
     if (this.runtimeRole !== 'Game') return;
     if (StorageService.getNumber('cloudBounceTutorialSeen', 0) === 0) {
       if (this.tutorialPanel) this.tutorialPanel.active = true;
+      if (this.hudNode) this.hudNode.active = false; // 教学期间隐藏 HUD，避免压住教学面板
     } else {
       this.beginEntry();
     }

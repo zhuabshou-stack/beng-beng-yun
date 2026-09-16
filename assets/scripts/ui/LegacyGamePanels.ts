@@ -40,14 +40,14 @@ export class LegacyGamePanels extends Component {
   }
 
   showSkills(): void {
-    const panel = this.openOverlay('GameSkillOverlay', '⚡ 技能商店', 972, 1210);
+    const panel = this.openOverlay('GameSkillOverlay', '⚡ 技能商店', 972, 1240);
     const data = LegacyProgression.loadSkills();
     const active = LegacyProgression.loadActiveSkills();
     const coins = StorageService.getNumber('cloudBounceCoins', 0);
     SKILLS.forEach((skill, index) => {
       const entry = data[skill.id];
       const card = this.createPanel(`Skill_${skill.id}`, panel, 848, 185, new Color(255, 255, 255, active.indexOf(skill.id) >= 0 ? 34 : 14), 39);
-      card.setPosition(0, 415 - index * 210, 0);
+      card.setPosition(0, 445 - index * 210, 0);
       const iconBlock = this.createNode(`IconBlock_${skill.id}`, card);
       iconBlock.addComponent(UITransform).setContentSize(122, 122);
       iconBlock.setPosition(-330, 0, 0);
@@ -58,14 +58,14 @@ export class LegacyGamePanels extends Component {
       const title = this.createLabel(`Title_${skill.id}`, card, `${skill.name}  Lv.${entry.level}`, 41, Color.WHITE);
       title.horizontalAlign = HorizontalTextAlignment.LEFT; title.node.getComponent(UITransform)?.setContentSize(400, 50); title.node.setPosition(-60, 52, 0);
       const desc = this.createLabel(`Desc_${skill.id}`, card, skill.description, 33, new Color(255, 255, 255, 145));
-      desc.horizontalAlign = HorizontalTextAlignment.LEFT; desc.node.getComponent(UITransform)?.setContentSize(420, 70); desc.node.setPosition(-85, -30, 0);
+      desc.horizontalAlign = HorizontalTextAlignment.LEFT; desc.overflow = Label.Overflow.SHRINK; desc.node.getComponent(UITransform)?.setContentSize(400, 70); desc.node.setPosition(-85, -30, 0);
       const actionText = entry.owned ? (active.indexOf(skill.id) >= 0 ? '🟢 已装备' : '⚪ 装备')
         : skill.unlockLevel > (this.gameManager?.currentLevel ?? 1) ? `通关${skill.unlockLevel}关` : `${skill.coinCost} 💰`;
       const action = this.createGradientButton(`Action_${skill.id}`, card, actionText, 290, 80, 40, 26);
       action.setPosition(270, 25, 0);
       action.on(Button.EventType.CLICK, () => this.skillAction(skill.id, coins), this);
     });
-    this.addClose(panel, -530, 848);
+    this.addClose(panel, -560, 848);
   }
 
   showRanking(): void {
@@ -92,18 +92,18 @@ export class LegacyGamePanels extends Component {
     const selected = StorageService.getNumber('cloudBounceSkin', 0);
     // 10 款皮肤滚动视窗（与主页皮肤面板同构）
     const viewNode = this.createNode('SkinScrollView', panel);
-    viewNode.addComponent(UITransform).setContentSize(848, 880);
-    viewNode.setPosition(0, -75, 0);
+    viewNode.addComponent(UITransform).setContentSize(848, 780);
+    viewNode.setPosition(0, -55, 0);
     const mask = viewNode.addComponent(Mask);
     mask.type = Mask.Type.GRAPHICS_STENCIL;
     const maskArt = viewNode.getComponent(Graphics) ?? viewNode.addComponent(Graphics);
-    maskArt.roundRect(-424, -440, 848, 880, 24);
+    maskArt.roundRect(-424, -390, 848, 780, 24);
     maskArt.fill();
     const content = this.createNode('SkinContent', viewNode);
     const contentTransform = content.addComponent(UITransform);
     contentTransform.setAnchorPoint(0.5, 1);
     contentTransform.setContentSize(848, Math.ceil(SKINS.length / 3) * 415 + 20);
-    content.setPosition(0, 440, 0);
+    content.setPosition(0, 390, 0);
     const scrollView = viewNode.addComponent(ScrollView);
     scrollView.content = content;
     scrollView.horizontal = false;
@@ -140,7 +140,7 @@ export class LegacyGamePanels extends Component {
       }, this);
       this.addPressFeedback(item);
     });
-    this.addClose(panel, -520, 848);
+    this.addClose(panel, -545, 848);
   }
 
   showLevelComplete(level: number): void {

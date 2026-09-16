@@ -109,6 +109,15 @@ export class VisualEffects extends Component {
     this.showFloatText(position, `里程碑 ${score} 分`, new Color(255, 243, 170, 255));
   }
 
+  // 爆炸演出：闪白帧感（双层爆发）+ 强震屏 + 浮字；配方按 juice 三件套
+  playExplosion(position: Vec3): void {
+    this.emitBurst(position, new Color(255, 196, 72, 255), 22, 380, 'radial');
+    this.emitBurst(position, new Color(255, 236, 210, 255), 14, 300, 'radial');
+    this.emitBurst(position, new Color(120, 110, 130, 235), 10, 160, 'up');
+    this.showFloatText(position, '💥', new Color(255, 150, 90, 255));
+    this.requestShake(14);
+  }
+
   playLevelCompleteFeedback(level: number, position: Vec3): void {
     this.emitBurst(position, new Color(179, 229, 255, 255), 28, 350, 'radial');
     this.showFloatText(position, `第 ${level} 段旅程完成`, new Color(201, 235, 255, 255));
