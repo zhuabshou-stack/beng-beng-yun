@@ -2,7 +2,7 @@
 
 审计基线：
 
-- 旧版：`D:\cesi2\游戏本体\游戏1-蹦蹦云\index.html`、`css/styles.css`、`js/navigation.js`、`home.js`、`game.js`
+- 旧版：`（本地参考目录）\游戏1-蹦蹦云\index.html`、`css/styles.css`、`js/navigation.js`、`home.js`、`game.js`
 - Cocos：v2.9.4，分支 `agent/html-parity`，Cocos Creator 3.8.8
 - 原则：旧 HTML 是页面、基础参数、技能和流程的唯一参考；用户明确要求可覆盖旧版行为。
 
