@@ -19,6 +19,7 @@ export class PlayerController extends Component {
   private skinIndex = 0;
   private jumpStretchRemaining = 0;
   private jumpStretchAmount: number = GAME.jumpStretchBase;
+  private giantFactor = 1;
 
   onLoad(): void {
     this.ensureVisual();
@@ -30,8 +31,8 @@ export class PlayerController extends Component {
     const stretchProgress = GAME.jumpStretchDuration > 0 ? this.jumpStretchRemaining / GAME.jumpStretchDuration : 0;
     const stretch = 1 + (this.jumpStretchAmount - 1) * stretchProgress;
     this.visual.setScale(
-      GAME.playerVisualScale / Math.sqrt(stretch),
-      GAME.playerVisualScale * stretch,
+      (GAME.playerVisualScale / Math.sqrt(stretch)) * this.giantFactor,
+      GAME.playerVisualScale * stretch * this.giantFactor,
       1,
     );
     this.visual.setRotationFromEuler(0, 0, 0);
@@ -45,6 +46,12 @@ export class PlayerController extends Component {
   setSkinIndex(index: number): void {
     this.skinIndex = Math.max(0, Math.floor(index)) % SKINS.length;
     this.ensureVisual();
+  }
+
+  // 巨型化：碰撞半径与视觉同步放大（落点更宽）
+  setGiant(on: boolean): void {
+    this.giantFactor = on ? GAME.giantScale : 1;
+    this.radius = GAME.playerRadius * GAME.collisionScale * this.giantFactor;
   }
 
   setGhostVisual(active: boolean): void {

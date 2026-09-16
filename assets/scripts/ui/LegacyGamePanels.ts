@@ -125,7 +125,8 @@ export class LegacyGamePanels extends Component {
       preview.setScale(2.3, 2.3, 1);
       const art = preview.addComponent(Graphics);
       UiKit.drawCharacter(art, skin);
-      this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -40, 0);
+      this.createLabel(`Rarity_${skin.id}`, item, UiKit.SKIN_RARITY_NAMES[skin.rarity] ?? '', 24, UiKit.SKIN_RARITY_COLORS[skin.rarity] ?? Color.WHITE).node.setPosition(0, -8, 0);
+      this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -48, 0);
       const unlocked = coins >= skin.unlockCost;
       this.createLabel(`State_${skin.id}`, item, unlocked ? (selected === index ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost}币`, 28, new Color(255, 220, 130, unlocked ? 255 : 110)).node.setPosition(0, -115, 0);
       const button = item.addComponent(Button); button.interactable = unlocked;

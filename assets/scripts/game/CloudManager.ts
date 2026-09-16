@@ -19,6 +19,8 @@ export class CloudManager extends Component {
   readonly clouds: CloudPlatform[] = [];
   onCloudSpawned: ((cloud: CloudPlatform) => void) | null = null;
   private lastX = 0;
+  // 隐藏 DDA：连败 3 次后脆弱云概率降低 20%（由 GameManager 按关卡设置）
+  ddaRelief = false;
 
   reset(viewportWidth: number, startY: number): void {
     for (const cloud of this.clouds) cloud.node.destroy();
@@ -77,7 +79,7 @@ export class CloudManager extends Component {
     const random = Math.random();
     // HTML v2.1.1：普通 75%、弹簧 5%、脆弱 10%、移动 10%，不限制连续特殊云。
     if (random < 0.05) return 'spring';
-    if (random < 0.15) return 'fragile';
+    if (random < (this.ddaRelief ? 0.13 : 0.15)) return 'fragile';
     if (random < 0.25) return 'moving';
     return 'normal';
   }

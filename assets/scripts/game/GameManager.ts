@@ -3,6 +3,7 @@ import {
   UITransform, Vec3, view, warn,
 } from 'cc';
 import { GAME, SKILLS, SkillId, levelSpeedScale, levelTargetFor } from '../core/GameConfig';
+import { MetaService } from '../core/MetaService';
 import { LegacyProgression } from '../core/LegacyProgression';
 import { GameData } from '../core/GameData';
 import { PlayerController } from './PlayerController';
@@ -73,6 +74,11 @@ export class GameManager extends Component {
   private levelPlayTime = 0;
   private gameTime = 0;
   private shieldActive = false;
+  // v2.14 爽感状态：完美连击→暴走、龙卷风、巨型化
+  private perfectStreak = 0;
+  private surgeRemaining = 0;
+  private tornadoRemaining = 0;
+  private giantRemaining = 0;
   private ghostRemaining = 0;
   private slowmoRemaining = 0;
   private magnetRemaining = 0;
@@ -141,6 +147,11 @@ export class GameManager extends Component {
     this.nextMilestoneIndex = 0;
     this.nextLevelTarget = levelTargetFor(this.currentLevel);
     this.levelPlayTime = 0;
+    this.perfectStreak = 0;
+    this.surgeRemaining = 0;
+    this.tornadoRemaining = 0;
+    this.giantRemaining = 0;
+    this.player?.setGiant(false);
     this.gameTime = 0;
     this.shieldActive = false;
     this.ghostRemaining = 0;
@@ -165,6 +176,12 @@ export class GameManager extends Component {
     if (!this.player || !this.cloudManager || this.phase !== 'idle') return;
     this.phase = 'playing';
     this.applyCombinedInput();
+    // v2.15 连败保护：连败 2 次后下一局自带一次护盾（不外显原因）
+    if (MetaService.getDefeatStreak() >= 2) {
+      this.shieldActive = true;
+      this.onSkillToast?.('🛡️ 护盾云已就位');
+    }
+    this.cloudManager.ddaRelief = MetaService.ddaActive(this.currentLevel);
     this.player.jump();
     ProgressionService.recordGameStarted();
     ProgressionService.recordJump();
@@ -197,7 +214,8 @@ export class GameManager extends Component {
   update(dt: number): void {
     if (this.phase !== 'playing' || !this.player || !this.cloudManager) return;
     // v2.13 关卡节奏：逐关时间加速 + 开局保护期渐入（弹道形状不变，整体节奏加快）
-    const speed = levelSpeedScale(this.currentLevel);
+    // v2.15 隐藏 DDA：同关连败 3 次后小幅降速（绝不外显）
+    const speed = levelSpeedScale(this.currentLevel) * (MetaService.ddaActive(this.currentLevel) ? 0.92 : 1);
     const grace = Math.min(1, this.levelPlayTime / GAME.levelGraceSeconds);
     this.levelPlayTime += dt;
     let remaining = Math.min(Math.max(0, dt * speed * grace), GAME.physicsMaxFrameDelta * Math.max(1, speed * grace));
@@ -214,6 +232,15 @@ export class GameManager extends Component {
     this.runPlayTime += dt;
     this.previousPlayerY = this.player.node.position.y;
     this.updateSkills(dt);
+    if (this.tornadoRemaining > 0) {
+      this.tornadoRemaining = Math.max(0, this.tornadoRemaining - dt);
+      this.player.velocity.y = GAME.tornadoRiseSpeed;
+    }
+    if (this.surgeRemaining > 0) this.surgeRemaining = Math.max(0, this.surgeRemaining - dt);
+    if (this.giantRemaining > 0) {
+      this.giantRemaining = Math.max(0, this.giantRemaining - dt);
+      if (this.giantRemaining === 0) this.player.setGiant(false);
+    }
     this.saveHistory(dt);
     this.player.simulate(dt, this.viewportWidth, this.slowmoRemaining > 0 ? 0.5 : 1);
     if (this.featherRemaining > 0 && this.player.velocity.y < 0) {
@@ -226,7 +253,7 @@ export class GameManager extends Component {
       ProgressionService.recordJump();
       this.onSkillToast?.('🦘 二段跳!');
     }
-    const landed = this.ghostRemaining <= 0 && this.resolveLanding();
+    const landed = this.ghostRemaining <= 0 && this.tornadoRemaining <= 0 && this.resolveLanding();
     if (
       !landed
       && this.lastLandedCloud
@@ -273,12 +300,14 @@ export class GameManager extends Component {
 
   addStar(amount = 1): void {
     this.data.stars += amount;
-    this.data.score += 10 * amount;
+    this.data.score += 10 * amount * (this.surgeRemaining > 0 ? GAME.surgeScoreMultiplier : 1);
+    MetaService.addDailyStars(amount);
     ProgressionService.recordStar(amount);
     this.checkProgressFeedback();
   }
 
   useSkill(id: SkillId): boolean {
+    MetaService.recordSkillUsed();
     const definition = SKILLS.find((skill) => skill.id === id);
     const unavailable = this.getSkillUnavailableReason(id);
     if (!definition || unavailable) {
@@ -340,7 +369,25 @@ export class GameManager extends Component {
 
       this.player.node.setPosition(px, top + this.player.radius, 0);
       const continuesCombo = cloud !== this.lastLandedCloud;
-      const scoreGain = this.data.registerLanding(continuesCombo);
+      const perfect = Math.abs(px - cloud.node.position.x) <= cloud.width * 0.5 * GAME.perfectZoneRatio;
+      let scoreGain = this.data.registerLanding(continuesCombo);
+      if (perfect) {
+        this.perfectStreak += 1;
+        this.data.score += GAME.surgeScoreBonus;
+        scoreGain += GAME.surgeScoreBonus;
+        if (this.perfectStreak >= GAME.surgePerfectStreak && this.surgeRemaining <= 0) {
+          this.surgeRemaining = GAME.surgeSeconds;
+          this.perfectStreak = 0;
+          this.onSkillToast?.('☁️ 连续完美落点，云暴走！得分翻倍');
+          AudioManager.playSound('milestone');
+        }
+      } else {
+        this.perfectStreak = 0;
+      }
+      if (this.surgeRemaining > 0) {
+        this.data.score += scoreGain * (GAME.surgeScoreMultiplier - 1);
+        scoreGain *= GAME.surgeScoreMultiplier;
+      }
       this.lastLandedCloud = cloud;
       this.lastLandingY = top;
       const tempoScale = Math.min(
@@ -378,9 +425,16 @@ export class GameManager extends Component {
   private handleCollectible(type: CollectibleType, position: Vec3): void {
     if (type === 'coin') this.addCoin();
     else if (type === 'star') this.addStar();
-    else this.featherRemaining = GAME.featherGlideDuration;
+    else if (type === 'tornado') {
+      this.tornadoRemaining = GAME.tornadoDuration;
+      this.onSkillToast?.('🌪️ 龙卷风！扶摇直上');
+    } else if (type === 'giant') {
+      this.giantRemaining = GAME.giantDuration;
+      this.player?.setGiant(true);
+      this.onSkillToast?.('🟣 巨型化！落点更宽');
+    } else this.featherRemaining = GAME.featherGlideDuration;
     this.onCollectibleFeedback?.(type, position);
-    AudioManager.playSound(type === 'feather' ? 'star' : type);
+    AudioManager.playSound(type === 'coin' || type === 'star' ? type : 'star');
   }
 
   private finishRun(): void {
@@ -390,6 +444,9 @@ export class GameManager extends Component {
     const stats = this.data.snapshot();
     this.flushRunProgress();
     ProgressionService.recordRunResult(stats);
+    MetaService.recordDeath(this.currentLevel);
+    MetaService.addWeeklyScore(stats.score);
+    MetaService.recordRunScore(Math.floor(stats.score));
     this.data.bestScore = Math.max(this.data.bestScore, stats.score);
     StorageService.setNumber('cloudBounceBest', this.data.bestScore);
     StorageService.setNumber('cloudBounceCoins', this.data.totalCoins);
@@ -419,6 +476,8 @@ export class GameManager extends Component {
 
   private completeLevel(): void {
     this.phase = 'complete';
+    MetaService.addCompletedLevel();
+    MetaService.resetDefeatStreak();
     this.data.totalCoins += GAME.levelRewardCoins;
     StorageService.setNumber('cloudBounceCoins', this.data.totalCoins);
     this.onLevelComplete?.(this.currentLevel, this.player?.node.position.clone() ?? Vec3.ZERO);

@@ -1,7 +1,7 @@
 import { _decorator, Color, Component, Graphics, Sprite, SpriteFrame, UITransform, Vec3 } from 'cc';
 const { ccclass } = _decorator;
 
-export type CollectibleType = 'coin' | 'star' | 'feather';
+export type CollectibleType = 'coin' | 'star' | 'feather' | 'tornado' | 'giant';
 
 @ccclass('Collectible')
 export class Collectible extends Component {
@@ -19,7 +19,7 @@ export class Collectible extends Component {
     starSpriteFrame: SpriteFrame | null,
   ): void {
     this.type = type;
-    this.radius = type === 'star' ? 20 : type === 'feather' ? 20 : 12;
+    this.radius = type === 'star' || type === 'tornado' || type === 'giant' ? 20 : type === 'feather' ? 20 : 12;
     this.collected = false;
     this.elapsed = Math.random() * Math.PI * 2;
     this.origin.set(position);
@@ -64,7 +64,38 @@ export class Collectible extends Component {
     graphics.clear();
     if (this.type === 'coin') this.drawCoin(graphics);
     else if (this.type === 'star') this.drawStar(graphics);
+    else if (this.type === 'tornado') this.drawTornado(graphics);
+    else if (this.type === 'giant') this.drawGiant(graphics);
     else this.drawFeather(graphics);
+  }
+
+  private drawTornado(graphics: Graphics): void {
+    graphics.strokeColor = new Color(120, 190, 255, 220);
+    graphics.lineWidth = 5;
+    graphics.arc(0, 10, 18, 0, Math.PI * 1.4, false);
+    graphics.stroke();
+    graphics.arc(0, -4, 12, Math.PI, Math.PI * 2.3, false);
+    graphics.stroke();
+    graphics.arc(0, -16, 7, 0, Math.PI * 1.5, false);
+    graphics.stroke();
+    graphics.fillColor = new Color(200, 235, 255, 200);
+    graphics.circle(0, 20, 4);
+    graphics.fill();
+  }
+
+  private drawGiant(graphics: Graphics): void {
+    graphics.fillColor = new Color(196, 146, 255, 42);
+    graphics.circle(0, 0, 30);
+    graphics.fill();
+    graphics.fillColor = new Color(255, 243, 176, 255);
+    for (let i = 0; i < 5; i += 1) {
+      const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      graphics.circle(Math.cos(angle) * 16, Math.sin(angle) * 16, 6);
+      graphics.fill();
+    }
+    graphics.fillColor = new Color(255, 138, 168, 255);
+    graphics.circle(0, 0, 8);
+    graphics.fill();
   }
 
   private drawCoin(graphics: Graphics): void {

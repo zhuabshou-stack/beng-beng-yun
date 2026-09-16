@@ -6,6 +6,7 @@ import {
 import { AudioManager } from '../core/AudioManager';
 import { GAME, SKILLS, SKINS, SkillId } from '../core/GameConfig';
 import { LegacyProgression } from '../core/LegacyProgression';
+import { MetaService, DAILY_TASKS } from '../core/MetaService';
 import { PlatformService } from '../platform/PlatformService';
 import { StorageService } from '../platform/StorageService';
 import { SceneNavigator } from './SceneNavigator';
@@ -62,6 +63,79 @@ export class HomeSceneBootstrap extends Component {
   onEnable(): void {
     this.refreshCoins();
     AudioManager.startMusic();
+    this.showStartupPopups();
+  }
+
+  // 启动弹窗链：离线收益 → 每日签到 → 云蛋盲盒（一次弹一个，关闭后接续）
+  private startupPopupBusy = false;
+  private showStartupPopups(): void {
+    if (this.startupPopupBusy || this.overlay) return;
+    const offline = MetaService.consumeOffline();
+    if (offline) {
+      this.startupPopupBusy = true;
+      const panel = this.openOverlay('OfflinePopup', '🧳 旅行归来', 918, 900);
+      this.createLabel('OfflineLine1', panel, `小生物独自去云上旅行了 ${offline.minutes} 分钟`, 38, new Color(255, 255, 255, 204)).node.setPosition(0, 120, 0);
+      this.createLabel('OfflineLine2', panel, `带回金币 +${offline.coins}`, 60, new Color(255, 215, 0, 255)).node.setPosition(0, -30, 0);
+      const claim = this.createGradientButton('OfflineClaim', panel, '收下', 753, 152, 76, 44);
+      claim.setPosition(0, -230, 0);
+      claim.on(Button.EventType.CLICK, () => {
+        StorageService.setNumber('cloudBounceCoins', StorageService.getNumber('cloudBounceCoins', 0) + offline.coins);
+        this.refreshCoins();
+        AudioManager.playSound('coin');
+        this.closeOverlay();
+        this.startupPopupBusy = false;
+        this.showStartupPopups();
+      }, this);
+      return;
+    }
+    if (MetaService.needsSign()) {
+      this.startupPopupBusy = true;
+      const nextDay = (MetaService.getSignStreak() % 7) + 1;
+      const panel = this.openOverlay('SignPopup', '📅 每日签到', 918, 1210);
+      const rewards: Array<string | number> = [60, 80, 100, 120, '限定皮肤', 180, 250];
+      rewards.forEach((reward, i) => {
+        const day = i + 1;
+        const state = day < nextDay ? '已领' : day === nextDay ? '今日' : '待领';
+        const row = this.createPanel(`SignRow_${day}`, panel, 794, 96, new Color(255, 255, 255, day === nextDay ? 26 : 10), 24);
+        row.setPosition(0, 430 - i * 118, 0);
+        this.createLabel(`SignDay_${day}`, row, `第 ${day} 天`, 30, Color.WHITE).node.setPosition(-265, 0, 0);
+        this.createLabel(`SignReward_${day}`, row, String(reward), 30, new Color(255, 215, 0, 220)).node.setPosition(130, 0, 0);
+        this.createLabel(`SignState_${day}`, row, state, 26, day === nextDay ? new Color(120, 255, 160, 255) : new Color(255, 255, 255, 110)).node.setPosition(300, 0, 0);
+      });
+      const sign = this.createGradientButton('SignButton', panel, `签到（第 ${nextDay} 天）`, 753, 152, 76, 44);
+      sign.setPosition(0, -500, 0);
+      sign.on(Button.EventType.CLICK, () => {
+        const result = MetaService.sign();
+        StorageService.setNumber('cloudBounceCoins', StorageService.getNumber('cloudBounceCoins', 0) + result.coins);
+        this.refreshCoins();
+        this.closeOverlay();
+        this.startupPopupBusy = false;
+        if (this.statusLabel) this.statusLabel.string = result.skinGranted ? '签到成功！获得限定皮肤，去商店查看' : `签到成功 +${result.coins} 金币`;
+        this.showStartupPopups();
+      }, this);
+      return;
+    }
+    if (MetaService.eggsAvailable() > 0) {
+      this.startupPopupBusy = true;
+      const panel = this.openOverlay('EggPopup', '🥚 云朵盲盒', 918, 900);
+      this.createLabel('EggLine1', panel, '完成关卡获得云蛋！打开看看～', 38, new Color(255, 255, 255, 204)).node.setPosition(0, 100, 0);
+      const open = this.createGradientButton('EggOpen', panel, '打开云蛋', 753, 152, 76, 44);
+      open.setPosition(0, -130, 0);
+      open.on(Button.EventType.CLICK, () => {
+        const reward = MetaService.openEgg();
+        StorageService.setNumber('cloudBounceCoins', StorageService.getNumber('cloudBounceCoins', 0) + reward.coins);
+        this.refreshCoins();
+        this.closeOverlay();
+        this.startupPopupBusy = false;
+        const skinText = reward.skinIndex !== null ? `获得新皮肤：${SKINS[reward.skinIndex].name}！` : `获得金币 +${reward.coins}`;
+        if (this.statusLabel) this.statusLabel.string = `云蛋开启：${skinText}`;
+        this.showStartupPopups();
+      }, this);
+      const closeEgg = this.createButton('EggClose', panel, '稍后再开', 480, 96, new Color(255, 255, 255, 26), 30, 24);
+      closeEgg.setPosition(0, -320, 0);
+      closeEgg.on(Button.EventType.CLICK, () => { this.closeOverlay(); this.startupPopupBusy = false; }, this);
+      return;
+    }
   }
 
   protected onDestroy(): void {
@@ -297,7 +371,10 @@ export class HomeSceneBootstrap extends Component {
       preview.setScale(2.3, 2.3, 1);
       const art = preview.addComponent(Graphics);
       UiKit.drawCharacter(art, skin);
-      this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -40, 0);
+      const rarityNames = ['', '普通', '稀有', '史诗', '传说'];
+      const rarityColors = [new Color(170, 185, 205, 200), new Color(110, 203, 255, 220), new Color(199, 146, 255, 220), new Color(255, 215, 0, 230)];
+      this.createLabel(`Rarity_${skin.id}`, item, rarityNames[skin.rarity] ?? '', 24, rarityColors[skin.rarity] ?? Color.WHITE).node.setPosition(0, -8, 0);
+      this.createLabel(`Name_${skin.id}`, item, skin.name, 33, Color.WHITE).node.setPosition(0, -48, 0);
       this.createLabel(`Lock_${skin.id}`, item, unlocked ? (isSelected ? '✅ 使用中' : '点击使用') : `🔒 ${skin.unlockCost} 币`, 28, unlocked ? new Color(255, 229, 140, 255) : new Color(255, 255, 255, 100)).node.setPosition(0, -115, 0);
       const button = item.addComponent(Button);
       button.interactable = unlocked;
@@ -376,34 +453,42 @@ export class HomeSceneBootstrap extends Component {
     if (this.statusLabel) this.statusLabel.string = message;
   }
 
+  private rankTab = 1; // 1=本周 2=总榜 3=好友
+
   private openRanking(): void {
     const panel = this.openOverlay('RankOverlay', '🏆 排行榜', 752, 1180);
-    // HTML §3.4：排行榜标题金色
-    const titleLabel = panel.getChildByName('RankOverlayTitle')?.getComponent(Label);
-    if (titleLabel) titleLabel.color = new Color(255, 215, 0, 255);
-    const ranking = StorageService.getJSON<number[]>('cloudBounceRanking', []);
-    if (ranking.length === 0) {
-      this.createLabel('RankEmpty', panel, '🎮 暂无记录\n快去玩游戏创造你的分数吧！', 39, new Color(255, 255, 255, 110)).node.setPosition(0, 60, 0);
-    } else ranking.slice(0, 10).forEach((score, index) => {
+    // 页签：本周（周重置）/ 总榜 / 好友（抖音登录后接入关系链）
+    const tabs = ['本周', '总榜', '好友'];
+    tabs.forEach((tab, i) => {
+      const chip = this.createButton(`RankTab_${i}`, panel, tab, 216, 84, new Color(255, 255, 255, this.rankTab === i + 1 ? 51 : 16), 28, 24);
+      chip.setPosition((i - 1) * 236, 430, 0);
+      chip.on(Button.EventType.CLICK, () => { this.rankTab = i + 1; this.openRanking(); }, this);
+    });
+    const rows: number[] = this.rankTab === 1 ? MetaService.getWeekly() : this.rankTab === 2 ? StorageService.getJSON<number[]>('cloudBounceRanking', []) : [];
+    if (this.rankTab === 3) {
+      this.createLabel('RankEmpty', panel, '👥 好友榜\n登录抖音账号后与好友比拼', 36, new Color(255, 255, 255, 140)).node.setPosition(0, 40, 0);
+    } else if (rows.length === 0) {
+      const emptyText = this.rankTab === 1 ? '本周还没有记录\n快去跳一跳吧！☁️' : '🎮 暂无记录\n快去玩游戏创造你的分数吧！';
+      this.createLabel('RankEmpty', panel, emptyText, 39, new Color(255, 255, 255, 110)).node.setPosition(0, 40, 0);
+    } else rows.slice(0, 7).forEach((score, index) => {
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`;
-      // HTML §3.4：前三名整行金/银/铜底色
       const rowColor = index === 0 ? new Color(255, 215, 0, 20)
         : index === 1 ? new Color(192, 192, 192, 15)
           : index === 2 ? new Color(205, 127, 50, 13)
             : new Color(255, 255, 255, 8);
       const row = this.createPanel(`Rank_${index}`, panel, 628, 111, rowColor, 33);
-      row.setPosition(0, 415 - index * 125, 0);
+      row.setPosition(0, 320 - index * 122, 0);
       this.createLabel(`RankPos_${index}`, row, medal, 36, index === 0 ? new Color(255, 215, 0) : Color.WHITE).node.setPosition(-240, 0, 0);
       this.createLabel(`RankName_${index}`, row, '玩家', 41, new Color(255, 255, 255, 205)).node.setPosition(-65, 0, 0);
       const scoreLabel = this.createLabel(`RankScore_${index}`, row, `${score}`, 44, new Color(255, 215, 0, 255));
       UiKit.styleLabel(scoreLabel, { shadow: false });
       scoreLabel.node.setPosition(222, 0, 0);
     });
-    this.addCloseButton(panel, -490, 628);
+    this.addCloseButton(panel, -505, 628);
   }
 
   private openStats(): void {
-    const panel = this.openOverlay('StatsOverlay', '📊 我的统计', 752, 1000);
+    const panel = this.openOverlay('StatsOverlay', '📊 我的统计', 752, 1180);
     const skills = LegacyProgression.loadSkills();
     const rows = [
       ['🪙 总金币', `${StorageService.getNumber('cloudBounceCoins', 0)}`],
@@ -413,13 +498,46 @@ export class HomeSceneBootstrap extends Component {
     ];
     rows.forEach(([label, value], index) => {
       const row = this.createPanel(`Stat_${index}`, panel, 628, 111, new Color(255, 255, 255, 8), 22);
-      row.setPosition(0, 265 - index * 140, 0);
+      row.setPosition(0, 380 - index * 140, 0);
       const left = this.createLabel(`StatLabel_${index}`, row, label, 41, new Color(255, 255, 255, 175));
       left.horizontalAlign = HorizontalTextAlignment.LEFT; left.node.getComponent(UITransform)?.setContentSize(400, 55); left.node.setPosition(-95, 0, 0);
       const right = this.createLabel(`StatValue_${index}`, row, value, 41, Color.WHITE);
       right.horizontalAlign = HorizontalTextAlignment.RIGHT; right.node.getComponent(UITransform)?.setContentSize(240, 55); right.node.setPosition(185, 0, 0);
     });
-    this.addCloseButton(panel, -370, 628);
+    // 每日任务三件套（MetaService 驱动）
+    const taskTitle = this.createLabel('DailyTitle', panel, '📅 今日任务', 41, Color.WHITE);
+    UiKit.styleLabel(taskTitle, { shadow: false });
+    taskTitle.node.setPosition(-230, -140, 0);
+    const daily = MetaService.getDaily();
+    DAILY_TASKS.forEach((task, index) => {
+      const progress = index === 0 ? Math.min(daily.bestScore, task.target) : index === 1 ? Math.min(daily.stars, task.target) : daily.skillUsed ? 1 : 0;
+      const done = progress >= task.target;
+      const claimed = daily.claimed[index];
+      const row = this.createPanel(`Task_${index}`, panel, 628, 111, new Color(255, 255, 255, done && !claimed ? 20 : 8), 22);
+      row.setPosition(0, -215 - index * 128, 0);
+      const label = this.createLabel(`TaskLabel_${index}`, row, task.label, 34, new Color(255, 255, 255, 204));
+      label.horizontalAlign = HorizontalTextAlignment.LEFT;
+      label.node.getComponent(UITransform)?.setContentSize(400, 50);
+      label.node.setPosition(-60, 26, 0);
+      this.createLabel(`TaskProgress_${index}`, row, progress + '/' + task.target, 28, new Color(255, 255, 255, 130)).node.setPosition(-60, -26, 0);
+      const rewardText = claimed ? '已领取' : done ? '领 ' + task.reward + ' 金币' : '奖励 ' + task.reward + ' 金币';
+      const rewardColor = claimed ? new Color(255, 255, 255, 100) : done ? new Color(120, 255, 160, 255) : new Color(255, 215, 0, 200);
+      this.createLabel(`TaskReward_${index}`, row, rewardText, 28, rewardColor).node.setPosition(215, 0, 0);
+      if (done && !claimed) {
+        const claim = this.createButton(`TaskClaim_${index}`, row, '领取', 140, 74, new Color(102, 126, 234, 230), 26, 20);
+        claim.setPosition(215, 0, 0);
+        claim.on(Button.EventType.CLICK, () => {
+          const reward = MetaService.claimDailyTask(index);
+          if (reward) {
+            StorageService.setNumber('cloudBounceCoins', StorageService.getNumber('cloudBounceCoins', 0) + reward);
+            this.refreshCoins();
+            AudioManager.playSound('coin');
+          }
+          this.openStats();
+        }, this);
+      }
+    });
+    this.addCloseButton(panel, -505, 628);
   }
 
   private openSettings(): void {

@@ -199,6 +199,15 @@ export class UiKit {
     return track;
   }
 
+  // —— 皮肤稀有度（1 普通 → 4 传说）——
+  static readonly SKIN_RARITY_NAMES = ['', '普通', '稀有', '史诗', '传说'];
+  static readonly SKIN_RARITY_COLORS = [
+    new Color(255, 255, 255, 255),
+    new Color(170, 185, 205, 200),
+    new Color(110, 203, 255, 220),
+    new Color(199, 146, 255, 220),
+    new Color(255, 215, 0, 230),
+  ];
   // 完整角色绘制（身体/翅膀/眼睛/腮红/嘴 + 皮肤专属特征）。
   // PlayerController 的游戏内角色与皮肤商店预览共用这一份实现，坐标为角色局部系（约 ±50）。
   static drawCharacter(graphics: Graphics, skin: SkinDefinition): void {

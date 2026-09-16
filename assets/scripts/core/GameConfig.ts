@@ -1,5 +1,5 @@
 export const GAME = Object.freeze({
-  version: '2.13.0',
+  version: '2.14.0',
   // HTML v2.1.1 是本分支的唯一玩法规格。原版使用 60 FPS 帧单位；
   // Cocos 世界统一放大 2 倍，再换算为秒单位，保留相同的相对跳高和云间距。
   legacyReferenceFps: 60,
@@ -43,6 +43,21 @@ export const GAME = Object.freeze({
   levelSpeedCap: 2.0,
   levelGraceSeconds: 3,
   levelTargetGrowth: 1.25,
+  // v2.14 爽感核心：完美落点→连击暴走、空中事件道具
+  perfectZoneRatio: 0.18,
+  surgeSeconds: 5,
+  surgePerfectStreak: 3,
+  surgeScoreMultiplier: 2,
+  surgeScoreBonus: 8,
+  tornadoDuration: 1.6,
+  tornadoRiseSpeed: 980,
+  giantDuration: 8,
+  giantScale: 1.6,
+  giantCollectChance: 0.035,
+  tornadoCollectChance: 0.045,
+  // v2.15 难度波浪：10 关一周期（3 简单+4 中等+2 难+1 松弛大爽关）
+  levelWaveTable: Object.freeze([0.92, 0.95, 0.98, 1.0, 1.03, 1.06, 1.09, 1.12, 1.16, 0.9]),
+  medals: Object.freeze([200, 500, 1000, 2000]),
   springJumpMultiplier: 2,
   comboResetFallSpeed: 120,
   // HTML 原版保持固定速度；以下增量仅实现本轮明确要求，并以原版速度为 1.0 基准。
@@ -79,9 +94,11 @@ export function levelTargetFor(level: number): number {
   return Math.round((GAME.levelTarget * Math.pow(GAME.levelTargetGrowth, level - 1)) / 10) * 10;
 }
 
-// 关卡时间加速：第 n 关 = 1 + (n-1)×0.07，第 5 关约 1.28、第 10 关 1.63，封顶 2.0
+// 关卡时间加速：第 n 关 = (1 + (n-1)×0.07) × 难度波浪（10 关周期，末关松弛），封顶 2.0
 export function levelSpeedScale(level: number): number {
-  return Math.min(GAME.levelSpeedCap, 1 + Math.max(0, level - 1) * GAME.levelSpeedStep);
+  const base = 1 + Math.max(0, level - 1) * GAME.levelSpeedStep;
+  const wave = GAME.levelWaveTable[(Math.max(1, level) - 1) % GAME.levelWaveTable.length];
+  return Math.min(GAME.levelSpeedCap, base * wave);
 }
 
 export type CloudType = 'normal' | 'spring' | 'fragile' | 'moving';
@@ -90,6 +107,7 @@ export type CloudType = 'normal' | 'spring' | 'fragile' | 'moving';
 export type SkinFeature = 'sunRays' | 'iceCrystals' | 'petals' | 'leafWings' | 'moonRing' | 'flameCrest' | 'boltMark' | 'candySprinkle' | 'visor' | 'inkBrush';
 
 export interface SkinDefinition {
+  rarity: number;
   id: string;
   name: string;
   unlockCost: number;
@@ -105,16 +123,16 @@ export interface SkinDefinition {
 }
 
 export const SKINS: ReadonlyArray<SkinDefinition> = Object.freeze([
-  { id: 'sunny', name: '小太阳', unlockCost: 0, bodyColor: '#FFE066', midColor: '#FFB347', accentColor: '#FF8C00', glowColor: '#FFD166', eyeColor: '#333333', blushColor: '#FF9696', wingColor: '#FFFFFF', spritePath: 'art/characters/sunny', feature: 'sunRays' },
-  { id: 'ice', name: '冰晶蓝', unlockCost: 0, bodyColor: '#A8E6CF', midColor: '#88D8F7', accentColor: '#4DABF7', glowColor: '#C8F4FF', eyeColor: '#1A5276', blushColor: '#96C8FF', wingColor: '#C8E6FF', spritePath: 'art/characters/ice', feature: 'iceCrystals' },
-  { id: 'sakura', name: '樱花粉', unlockCost: 0, bodyColor: '#FFB3C6', midColor: '#FF8FAB', accentColor: '#FB6F92', glowColor: '#FFD6E0', eyeColor: '#5C1A3E', blushColor: '#FF6496', wingColor: '#FFC8DC', spritePath: 'art/characters/sakura', feature: 'petals' },
-  { id: 'jade', name: '翡翠绿', unlockCost: 50, bodyColor: '#A3E4D7', midColor: '#7DCEA0', accentColor: '#52BE80', glowColor: '#B7F7D4', eyeColor: '#1A5C3E', blushColor: '#96FFC8', wingColor: '#C8FFDC', spritePath: 'art/characters/jade', feature: 'leafWings' },
-  { id: 'night', name: '暗夜紫', unlockCost: 100, bodyColor: '#C39BD3', midColor: '#A569BD', accentColor: '#7D3C98', glowColor: '#DEC9FF', eyeColor: '#2C1A5C', blushColor: '#C896FF', wingColor: '#DCC8FF', spritePath: 'art/characters/night', feature: 'moonRing' },
-  { id: 'flame', name: '烈焰红', unlockCost: 200, bodyColor: '#FF9A9E', midColor: '#FF6B6B', accentColor: '#EE5A24', glowColor: '#FFC1B8', eyeColor: '#4A1A1A', blushColor: '#FF9696', wingColor: '#FFC8C8', spritePath: 'art/characters/flame', feature: 'flameCrest' },
-  { id: 'bolt', name: '闪电黄', unlockCost: 300, bodyColor: '#FFE97F', midColor: '#FFD23F', accentColor: '#F5A623', glowColor: '#FFF3B0', eyeColor: '#4A3A00', blushColor: '#FFC94D', wingColor: '#FFF0C2', spritePath: 'art/characters/bolt', feature: 'boltMark' },
-  { id: 'candy', name: '软糖豆', unlockCost: 300, bodyColor: '#FF9AA2', midColor: '#FFB7B2', accentColor: '#FFDAC1', glowColor: '#FFE3E0', eyeColor: '#7A3B3B', blushColor: '#FF8FA5', wingColor: '#B5EAD7', spritePath: 'art/characters/candy', feature: 'candySprinkle' },
-  { id: 'astro', name: '小宇航', unlockCost: 400, bodyColor: '#E8F1FF', midColor: '#BFD7FF', accentColor: '#8FA8D8', glowColor: '#E0ECFF', eyeColor: '#25324D', blushColor: '#AFC6EE', wingColor: '#D6E4FF', spritePath: 'art/characters/astro', feature: 'visor' },
-  { id: 'ink', name: '水墨侠', unlockCost: 500, bodyColor: '#F5F5F0', midColor: '#C8C8C0', accentColor: '#4A4A45', glowColor: '#E8E8E2', eyeColor: '#222222', blushColor: '#D8D8D0', wingColor: '#B0B0A8', spritePath: 'art/characters/ink', feature: 'inkBrush' },
+  { id: 'sunny', name: '小太阳', unlockCost: 0, bodyColor: '#FFE066', midColor: '#FFB347', accentColor: '#FF8C00', glowColor: '#FFD166', eyeColor: '#333333', blushColor: '#FF9696', wingColor: '#FFFFFF', spritePath: 'art/characters/sunny', feature: 'sunRays', rarity: 1, },
+  { id: 'ice', name: '冰晶蓝', unlockCost: 0, bodyColor: '#A8E6CF', midColor: '#88D8F7', accentColor: '#4DABF7', glowColor: '#C8F4FF', eyeColor: '#1A5276', blushColor: '#96C8FF', wingColor: '#C8E6FF', spritePath: 'art/characters/ice', feature: 'iceCrystals', rarity: 1, },
+  { id: 'sakura', name: '樱花粉', unlockCost: 0, bodyColor: '#FFB3C6', midColor: '#FF8FAB', accentColor: '#FB6F92', glowColor: '#FFD6E0', eyeColor: '#5C1A3E', blushColor: '#FF6496', wingColor: '#FFC8DC', spritePath: 'art/characters/sakura', feature: 'petals', rarity: 1, },
+  { id: 'jade', name: '翡翠绿', unlockCost: 50, bodyColor: '#A3E4D7', midColor: '#7DCEA0', accentColor: '#52BE80', glowColor: '#B7F7D4', eyeColor: '#1A5C3E', blushColor: '#96FFC8', wingColor: '#C8FFDC', spritePath: 'art/characters/jade', feature: 'leafWings', rarity: 2, },
+  { id: 'night', name: '暗夜紫', unlockCost: 100, bodyColor: '#C39BD3', midColor: '#A569BD', accentColor: '#7D3C98', glowColor: '#DEC9FF', eyeColor: '#2C1A5C', blushColor: '#C896FF', wingColor: '#DCC8FF', spritePath: 'art/characters/night', feature: 'moonRing', rarity: 2, },
+  { id: 'flame', name: '烈焰红', unlockCost: 200, bodyColor: '#FF9A9E', midColor: '#FF6B6B', accentColor: '#EE5A24', glowColor: '#FFC1B8', eyeColor: '#4A1A1A', blushColor: '#FF9696', wingColor: '#FFC8C8', spritePath: 'art/characters/flame', feature: 'flameCrest', rarity: 3, },
+  { id: 'bolt', name: '闪电黄', unlockCost: 300, bodyColor: '#FFE97F', midColor: '#FFD23F', accentColor: '#F5A623', glowColor: '#FFF3B0', eyeColor: '#4A3A00', blushColor: '#FFC94D', wingColor: '#FFF0C2', spritePath: 'art/characters/bolt', feature: 'boltMark', rarity: 2, },
+  { id: 'candy', name: '软糖豆', unlockCost: 300, bodyColor: '#FF9AA2', midColor: '#FFB7B2', accentColor: '#FFDAC1', glowColor: '#FFE3E0', eyeColor: '#7A3B3B', blushColor: '#FF8FA5', wingColor: '#B5EAD7', spritePath: 'art/characters/candy', feature: 'candySprinkle', rarity: 2, },
+  { id: 'astro', name: '小宇航', unlockCost: 400, bodyColor: '#E8F1FF', midColor: '#BFD7FF', accentColor: '#8FA8D8', glowColor: '#E0ECFF', eyeColor: '#25324D', blushColor: '#AFC6EE', wingColor: '#D6E4FF', spritePath: 'art/characters/astro', feature: 'visor', rarity: 3, },
+  { id: 'ink', name: '水墨侠', unlockCost: 500, bodyColor: '#F5F5F0', midColor: '#C8C8C0', accentColor: '#4A4A45', glowColor: '#E8E8E2', eyeColor: '#222222', blushColor: '#D8D8D0', wingColor: '#B0B0A8', spritePath: 'art/characters/ink', feature: 'inkBrush', rarity: 4, },
 ]);
 
 export type SkillId = 'shield' | 'magnet' | 'slowmo' | 'ghost' | 'doubleJump' | 'timeWarp';

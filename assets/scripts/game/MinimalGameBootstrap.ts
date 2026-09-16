@@ -18,6 +18,7 @@ import { VisualEffects } from '../visual/VisualEffects';
 import { VisualEnvironment } from '../visual/VisualEnvironment';
 import { StorageService } from '../platform/StorageService';
 import { PlatformService } from '../platform/PlatformService';
+import { MetaService } from '../core/MetaService';
 import { UiKit } from '../ui/UiKit';
 import { LegacyGamePanels } from '../ui/LegacyGamePanels';
 const { ccclass, property } = _decorator;
@@ -201,6 +202,10 @@ export class MinimalGameBootstrap extends Component {
       if (record) record.active = isRecord;
       const stats = this.resultPanel.getChildByName('ResultStats')?.getComponent(Label);
       if (stats) stats.string = `高度 ${Math.floor(data.heightMeters)}m   金币 ${data.runCoins}   星星 ${data.stars}\n最高连击 ${data.maxCombo}`;
+      // v2.14 奖牌进度：one-more-try 的具体追逐目标
+      const medalInfo = MetaService.medalInfo(Math.floor(data.score));
+      const medal = this.resultPanel.getChildByName('ResultMedal')?.getComponent(Label);
+      if (medal) medal.string = medalInfo.gap > 0 ? `距${medalInfo.nextName}还差 ${medalInfo.gap} 分` : '🏆 全部奖牌达成！';
       this.resultOverlay.active = true;
     }
   }
@@ -327,6 +332,9 @@ export class MinimalGameBootstrap extends Component {
     const resultStats = this.createLabel('ResultStats', this.resultPanel, '高度 0m   金币 0   星星 0\n最高连击 0', 41, new Vec3(0, 20, 0));
     resultStats.lineHeight = 58;
     resultStats.node.getComponent(UITransform)?.setContentSize(780, 160);
+    const resultMedal = this.createLabel('ResultMedal', this.resultPanel, '', 34, new Vec3(0, -100, 0));
+    UiKit.styleLabel(resultMedal, { shadow: false });
+    resultMedal.color = new Color(180, 200, 255, 230);
     const restart = this.createGradientButton('RestartButton', this.resultPanel, '🔄  再来一次', 753, 152, 76, 44);
     restart.setPosition(0, -240, 0); restart.on(Button.EventType.CLICK, this.restart, this);
     const home = this.createGradientButton('ResultHomeButton', this.resultPanel, '🏠  回到主页', 753, 125, 62, 44, UiKit.ACCENT_GRADIENT);
